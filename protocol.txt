@@ -12,6 +12,19 @@ the username is already taken, or anything contains a comma.
 The new customer is saved to customers_database.txt, so it survives a server restart.
 The server then asks "Enter Username" again so the new customer can log in.
 
+LOGIN
+The server asks "Enter Username", then "Enter Password".
+The username must exist and the password must match the one given at REGISTER.
+Test customers (Bhagy, Christina, John) have no password: leave the password
+blank (just press Enter).
+Returns:  Checking Details...
+          Log In Successful. What do you want to do?
+or:       Checking Details...
+          Log In Failed. Attempts left: <n>     (then "Enter Username" again)
+After 3 failed attempts:
+          Log In Failed. Too many failed attempts, disconnecting.
+Typing REGISTER at the username prompt does not count as a failed attempt.
+
 Once logged in, a customer enters the commands below and sees the messages returned
 
 SHOWMYACCOUNTS

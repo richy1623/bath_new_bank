@@ -22,22 +22,43 @@ public class NewBankClientHandler extends Thread{
 	public void run() {
 		// keep getting requests from the client and processing them
 		try {
-			// ask for user name; the user can type REGISTER <Username> <Password> here instead
-			// to create a new customer, and is then asked for a username again so they can log in
-			out.println("Enter Username");
-			String userName = in.readLine();
-			while(userName != null && userName.startsWith("REGISTER")) {
-				out.println(bank.registerCustomer(userName));
+			// the customer gets this many tries to log in before being disconnected
+			final int MAX_LOGIN_ATTEMPTS = 3;
+			int failedAttempts = 0;
+			CustomerID customer = null;
+			while(customer == null && failedAttempts < MAX_LOGIN_ATTEMPTS) {
+				// ask for user name; the user can type REGISTER <Full Name> <Username> <Password> here
+				// instead to create a new customer (this doesn't count as a login attempt)
 				out.println("Enter Username");
-				userName = in.readLine();
+				String userName = in.readLine();
+				if(userName == null) {
+					break; // client disconnected
+				}
+				if(userName.startsWith("REGISTER")) {
+					out.println(bank.registerCustomer(userName));
+					continue;
+				}
+				// ask for password
+				out.println("Enter Password");
+				String password = in.readLine();
+				if(password == null) {
+					break; // client disconnected
+				}
+				out.println("Checking Details...");
+				// authenticate user and get customer ID token from bank for use in subsequent requests
+				customer = bank.checkLogInDetails(userName, password);
+				if(customer == null) {
+					failedAttempts++;
+					int attemptsLeft = MAX_LOGIN_ATTEMPTS - failedAttempts;
+					if(attemptsLeft > 0) {
+						out.println("Log In Failed. Attempts left: " + attemptsLeft);
+					}
+					else {
+						out.println("Log In Failed. Too many failed attempts, disconnecting.");
+					}
+				}
 			}
-			// ask for password
-			out.println("Enter Password");
-			String password = in.readLine();
-			out.println("Checking Details...");
-			// authenticate user and get customer ID token from bank for use in subsequent requests
-			CustomerID customer = bank.checkLogInDetails(userName, password);
-			// if the user is authenticated then get requests from the user and process them 
+			// if the user is authenticated then get requests from the user and process them
 			if(customer != null) {
 				out.println("Log In Successful. What do you want to do?");
 				while(true) {
@@ -46,9 +67,6 @@ public class NewBankClientHandler extends Thread{
 					String responce = bank.processRequest(customer, request);
 					out.println(responce);
 				}
-			}
-			else {
-				out.println("Log In Failed");
 			}
 		} catch (IOException e) {
 			e.printStackTrace();

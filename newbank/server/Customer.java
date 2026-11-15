@@ -29,6 +29,17 @@ public class Customer {
 	public String getFullName() {
 		return fullName;
 	}
+
+	// true if the attempt matches this customer's password.
+	// Test customers have no password (null, or "" once loaded from the file),
+	// so for them a blank attempt (just pressing Enter) matches.
+	public boolean checkPassword(String attempt) {
+		if(attempt == null) {
+			return false;
+		}
+		String saved = (password == null) ? "" : password;
+		return saved.equals(attempt);
+	}
 	
 	public String accountsToString() {
 		String s = "";

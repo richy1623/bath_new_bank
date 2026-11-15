@@ -108,8 +108,10 @@ public class NewBank {
 		return bank;
 	}
 	
+	// returns a CustomerID only if the username exists AND the password matches, otherwise null
 	public synchronized CustomerID checkLogInDetails(String userName, String password) {
-		if(customers.containsKey(userName)) {
+		Customer customer = customers.get(userName);
+		if(customer != null && customer.checkPassword(password)) {
 			return new CustomerID(userName);
 		}
 		return null;

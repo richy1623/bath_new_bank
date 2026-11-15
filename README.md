@@ -76,7 +76,7 @@ A session looks like this (lines starting with `>` are typed by you):
 Enter Username
 > Bhagy
 Enter Password
-> whatever
+>
 Checking Details...
 Log In Successful. What do you want to do?
 > SHOWMYACCOUNTS
@@ -85,7 +85,27 @@ Main: 1000.0
 FAIL
 ```
 
-The password isn't checked yet, so anything works. `nc localhost 14002` works just as well as the example client.
+`nc localhost 14002` works just as well as the example client.
+
+### Logging in
+
+The username must exist and the password must match the one given at `REGISTER`. The test customers have no password, so leave the password blank (just press Enter), as in the example above.
+
+You get 3 attempts. After a failed attempt, the server says how many are left and asks for the username again. After the third failure, it disconnects:
+
+```text
+Enter Username
+> asmith
+Enter Password
+> wrong
+Checking Details...
+Log In Failed. Attempts left: 2
+Enter Username
+```
+
+Typing `REGISTER ...` at the username prompt doesn't use up an attempt.
+
+The check is in `NewBank.checkLogInDetails()` and `Customer.checkPassword()`. The attempt counting is in `NewBankClientHandler.run()`.
 
 To create a new customer, type `REGISTER <Full Name> <Username> <Password>` at the `Enter Username` prompt. The full name can be several words, and the last two words are always the username and password. The new customer gets a unique number ID and no accounts yet, so `SHOWMYACCOUNTS` returns an empty line.
 
@@ -275,7 +295,7 @@ sequenceDiagram
     C->>H: "****"
     H-->>C: "Checking Details..."
     H->>B: checkLogInDetails(user, pwd)
-    alt username exists
+    alt username exists and password matches
         B-->>H: CustomerID("Bhagy")
         H-->>C: "Log In Successful. What do you want to do?"
         loop every line the user sends
@@ -285,10 +305,10 @@ sequenceDiagram
             B-->>H: "Main: 1000.0"
             H-->>C: "Main: 1000.0"
         end
-    else unknown username
+    else unknown username or wrong password
         B-->>H: null
-        H-->>C: "Log In Failed"
-        H->>H: close streams and exit
+        H-->>C: "Log In Failed. Attempts left: n"
+        Note over C,H: back to "Enter Username"; after 3 failures<br/>the handler disconnects
     end
 ```
 
@@ -303,8 +323,9 @@ stateDiagram-v2
     AwaitUsername --> AwaitPassword : got username
     AwaitPassword --> Authenticating : got password
     Authenticating --> LoggedIn : CustomerID returned
-    Authenticating --> Rejected : null returned
-    Rejected --> Closed : send "Log In Failed"
+    Authenticating --> AwaitUsername : null returned, fewer than 3 failures
+    Authenticating --> Rejected : null returned, 3rd failure
+    Rejected --> Closed : send "Too many failed attempts"
 
     state LoggedIn {
         [*] --> AwaitCommand
@@ -345,8 +366,10 @@ flowchart TD
     B --> C[start NewBankClientHandler]
     C --> D[ask for and read username]
     D --> E[ask for and read password]
-    E --> F{"username known?<br/>(password ignored)"}
-    F -- no --> G[send Log In Failed] --> Z([close streams])
+    E --> F{"username known and<br/>password matches?"}
+    F -- no --> G{3rd failure?}
+    G -- no --> D
+    G -- yes --> Z([close streams])
     F -- yes --> H[send Log In Successful]
     H --> I[/read a line/]
     I --> J{customer exists?}
