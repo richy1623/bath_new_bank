@@ -105,7 +105,21 @@ Enter Username
 
 Typing `REGISTER ...` at the username prompt doesn't use up an attempt.
 
-The check is in `NewBank.checkLogInDetails()` and `Customer.checkPassword()`. The attempt counting is in `NewBankClientHandler.run()`.
+The check is in `NewBank.checkLogInDetails()` and `Customer.checkPassword()`. The attempt counting is in `NewBankClientHandler.logIn()`.
+
+### Logging out
+
+Type `LOGOUT` once logged in. The server says goodbye and goes back to the login prompt, so you can log in as someone else, or `REGISTER`, without restarting the client:
+
+```text
+> LOGOUT
+Log Out Successful. Goodbye Bhagy.
+Enter Username
+```
+
+Each new login starts with 3 fresh attempts. `LOGOUT` must be in capitals, like the other commands.
+
+`LOGOUT` is handled in `NewBankClientHandler.run()` rather than `NewBank.processRequest()`, because it ends the connection's session rather than changing the customer's data. `run()` loops: call `logIn()`, process commands until `LOGOUT`, then call `logIn()` again.
 
 To create a new customer, type `REGISTER <Full Name> <Username> <Password>` at the `Enter Username` prompt. The full name can be several words, and the last two words are always the username and password. The new customer gets a unique number ID and no accounts yet, so `SHOWMYACCOUNTS` returns an empty line.
 
@@ -160,6 +174,7 @@ Everything is plain text over TCP, one message per line. After the username and 
 | Command | Example | Reply | Implemented |
 |---|---|---|---|
 | `REGISTER <Full Name> <Username> <Password>` | `REGISTER Alice Smith asmith secret` | `SUCCESS`, or `FAIL` if the format is wrong, the username is taken, or anything contains a comma. Typed at the `Enter Username` prompt, before login. | Yes |
+| `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
 | `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | Accounts and balances, e.g. `Main: 1000.0` | Yes |
 | `NEWACCOUNT <Name>` | `NEWACCOUNT Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 | `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
@@ -227,6 +242,7 @@ classDiagram
         -BufferedReader in
         -PrintWriter out
         +NewBankClientHandler(Socket s)
+        -logIn() CustomerID
         +run()
     }
     class NewBank {
@@ -305,6 +321,10 @@ sequenceDiagram
             B-->>H: "Main: 1000.0"
             H-->>C: "Main: 1000.0"
         end
+        U->>C: LOGOUT
+        C->>H: "LOGOUT"
+        H-->>C: "Log Out Successful. Goodbye Bhagy."
+        H-->>C: "Enter Username"
     else unknown username or wrong password
         B-->>H: null
         H-->>C: "Log In Failed. Attempts left: n"
@@ -333,6 +353,7 @@ stateDiagram-v2
         Processing --> AwaitCommand : reply sent
     }
 
+    LoggedIn --> AwaitUsername : LOGOUT
     LoggedIn --> Closed : IOException or disconnect
     Closed --> [*]
 
@@ -372,7 +393,9 @@ flowchart TD
     G -- yes --> Z([close streams])
     F -- yes --> H[send Log In Successful]
     H --> I[/read a line/]
-    I --> J{customer exists?}
+    I --> LO{LOGOUT?}
+    LO -- yes --> LS[send Log Out Successful] --> D
+    LO -- no --> J{customer exists?}
     J -- no --> K[FAIL]
     J -- yes --> L{which command?}
     L -- SHOWMYACCOUNTS --> M[list accounts]

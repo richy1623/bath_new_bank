@@ -25,6 +25,13 @@ After 3 failed attempts:
           Log In Failed. Too many failed attempts, disconnecting.
 Typing REGISTER at the username prompt does not count as a failed attempt.
 
+LOGOUT
+Typed once logged in. Ends the session without closing the connection.
+Returns:  Log Out Successful. Goodbye <Username>.
+          Enter Username
+The server then goes back to the login prompt, so another customer can log in
+(or REGISTER) without restarting the client. The 3 login attempts start fresh.
+
 Once logged in, a customer enters the commands below and sees the messages returned
 
 SHOWMYACCOUNTS
