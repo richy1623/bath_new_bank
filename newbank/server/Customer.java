@@ -9,14 +9,10 @@ public class Customer {
 	private String fullName;
 	private String password;
 
-	public Customer() {
-		accounts = new ArrayList<>();
-	}
-
-	// used by REGISTER and when loading the customers file: a customer with a unique ID,
-	// full name and password, and no accounts yet
+	// the only constructor: every customer must have an ID, so there's no empty Customer()
+	// (used by REGISTER, the test data, and when loading the customers file)
 	public Customer(int id, String fullName, String password) {
-		this();
+		accounts = new ArrayList<>();
 		this.id = id;
 		this.fullName = fullName;
 		this.password = password;

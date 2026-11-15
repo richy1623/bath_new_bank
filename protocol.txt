@@ -1,15 +1,25 @@
 This document details the protocol for interacting with the NewBank server.  
 
-REGISTER <Full Name> <Username> <Password>
-e.g. REGISTER Alice Smith asmith secret
-Typed at the "Enter Username" prompt, before logging in.
-The full name can be one or more words. The last two words are always taken
-as the username and password, so usernames and passwords can't contain spaces.
+REGISTER
+Type REGISTER on its own at the "Enter Username" prompt, before logging in.
+The server then asks for each detail on its own line:
+  Enter Full Name      e.g. Alice Smith      (can contain spaces)
+  Enter Username       e.g. asmith           (no spaces)
+  Enter Password       e.g. my secret        (can contain spaces)
 Adds a new customer with no accounts (so nothing to show and a 0.00 total),
 and gives them a unique number ID (one more than the highest ID so far).
-Returns SUCCESS, or FAIL if the format is wrong (fewer than three values),
-the username is already taken, or anything contains a comma.
+Returns SUCCESS, or FAIL: <reason>, one of:
+  FAIL: Full name cannot be empty
+  FAIL: Username cannot be empty or contain spaces
+  FAIL: Password cannot be empty
+  FAIL: Full name, username and password cannot contain commas
+  FAIL: Username <username> is already taken
+  FAIL: Your details could not be saved, please try again later
+  FAIL: Customer data could not be loaded, so new customers cannot be saved right now
+Typing the old one-line form (REGISTER followed by details) returns:
+  FAIL: Type REGISTER on its own and you will be asked for each detail
 The new customer is saved to customers_database.txt, so it survives a server restart.
+SUCCESS is only sent once the save has worked.
 The server then asks "Enter Username" again so the new customer can log in.
 
 LOGIN
@@ -20,17 +30,15 @@ blank (just press Enter).
 Returns:  Checking Details...
           Log In Successful. What do you want to do?
 or:       Checking Details...
-          Log In Failed. Attempts left: <n>     (then "Enter Username" again)
-After 3 failed attempts:
-          Log In Failed. Too many failed attempts, disconnecting.
-Typing REGISTER at the username prompt does not count as a failed attempt.
+          Log In Failed. Please try again.     (then "Enter Username" again)
+There is no limit on the number of attempts.
 
 LOGOUT
 Typed once logged in. Ends the session without closing the connection.
 Returns:  Log Out Successful. Goodbye <Username>.
           Enter Username
 The server then goes back to the login prompt, so another customer can log in
-(or REGISTER) without restarting the client. The 3 login attempts start fresh.
+(or REGISTER) without restarting the client.
 
 Once logged in, a customer enters the commands below and sees the messages returned
 

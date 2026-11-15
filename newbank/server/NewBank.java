@@ -1,11 +1,6 @@
 package newbank.server;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.HashMap;
 
 public class NewBank {
@@ -14,81 +9,47 @@ public class NewBank {
 	// which is the project folder when you follow the README)
 	private static final String CUSTOMERS_FILE = "customers_database.txt";
 
-	private static final NewBank bank = new NewBank();
+	private static final NewBank bank = new NewBank(CUSTOMERS_FILE);
 	private HashMap<String,Customer> customers;
+	private CustomerDatabase database;
+	// false if the file exists but couldn't be loaded. Saving is then switched off,
+	// so the empty customer list in memory never overwrites the real file.
+	private boolean canSave = true;
 	// the ID the next registered customer will get (one more than the highest ID so far)
 	private int nextId = 1;
 
-	private NewBank() {
+	// package-private (not private) so the tests can create a bank that uses a temporary file
+	NewBank(String customersFile) {
 		customers = new HashMap<>();
-		// on start: if customers_database.txt exists, load it and move on;
+		database = new CustomerDatabase(customersFile);
+		// on start: if the file exists, load it and move on;
 		// if not (first run), create it from the test data
-		if(new File(CUSTOMERS_FILE).exists()) {
-			loadCustomers();
+		if(database.exists()) {
+			try {
+				customers = database.load();
+				// keep nextId above every ID already used, so IDs stay unique
+				for(Customer c : customers.values()) {
+					if(c.getId() >= nextId) {
+						nextId = c.getId() + 1;
+					}
+				}
+			} catch(IOException e) {
+				canSave = false;
+				System.out.println("ERROR: could not load customers: " + e.getMessage());
+				System.out.println("Saving is switched off so " + customersFile + " is not overwritten. "
+						+ "Fix or remove the file and restart the server.");
+			}
 		}
 		else {
 			addTestData();
-			saveCustomers();
+			try {
+				database.save(customers);
+			} catch(IOException e) {
+				System.out.println("ERROR: could not create " + customersFile + ": " + e.getMessage());
+			}
 		}
 	}
 
-	/*
-	 * File format: one customer per line
-	 *   id,username,full name,password,AccountName:balance;AccountName:balance
-	 * e.g.
-	 *   1,Bhagy,,,Main:1000.0                 (test customers have no full name or password)
-	 *   4,asmith,Alice Smith,secret,          (registered customer with no accounts yet)
-	 */
-	private void saveCustomers() {
-		try(PrintWriter file = new PrintWriter(new FileWriter(CUSTOMERS_FILE))) {
-			for(String userName : customers.keySet()) {
-				Customer c = customers.get(userName);
-				String fullName = (c.getFullName() == null) ? "" : c.getFullName();
-				String password = (c.getPassword() == null) ? "" : c.getPassword();
-				String accounts = "";
-				for(Account a : c.getAccounts()) {
-					if(!accounts.isEmpty()) {
-						accounts += ";";
-					}
-					accounts += a.getAccountName() + ":" + a.getBalance();
-				}
-				file.println(c.getId() + "," + userName + "," + fullName + "," + password + "," + accounts);
-			}
-		} catch(IOException e) {
-			System.out.println("Could not save " + CUSTOMERS_FILE + ": " + e.getMessage());
-		}
-	}
-
-	// reads customers_database.txt back into the customers HashMap (the reverse of saveCustomers)
-	private void loadCustomers() {
-		try(BufferedReader file = new BufferedReader(new FileReader(CUSTOMERS_FILE))) {
-			String line;
-			while((line = file.readLine()) != null) {
-				if(line.trim().isEmpty()) {
-					continue;
-				}
-				// -1 keeps empty fields, e.g. "4,asmith,Alice Smith,secret," has an empty accounts field
-				// fields: [0] id, [1] username, [2] full name, [3] password, [4] accounts
-				String[] fields = line.split(",", -1);
-				int id = Integer.parseInt(fields[0]);
-				Customer c = new Customer(id, fields[2], fields[3]);
-				if(!fields[4].isEmpty()) {
-					for(String account : fields[4].split(";")) {
-						String[] nameAndBalance = account.split(":");
-						c.addAccount(new Account(nameAndBalance[0], Double.parseDouble(nameAndBalance[1])));
-					}
-				}
-				customers.put(fields[1], c);
-				// keep nextId above every ID already used, so IDs stay unique
-				if(id >= nextId) {
-					nextId = id + 1;
-				}
-			}
-		} catch(IOException e) {
-			System.out.println("Could not load " + CUSTOMERS_FILE + ": " + e.getMessage());
-		}
-	}
-	
 	private void addTestData() {
 		// test customers get IDs 1-3 and have no full name or password
 		Customer bhagy = new Customer(nextId++, "", null);
@@ -117,28 +78,44 @@ public class NewBank {
 		return null;
 	}
 
-	// REGISTER <Full Name> <Username> <Password> : adds a new customer (with no accounts and a unique ID)
-	// to the customers HashMap. The full name can be several words, e.g. REGISTER Alice Smith asmith secret,
-	// so the last two words are the username and password and everything in between is the full name.
-	// returns "SUCCESS", or "FAIL" if the format is wrong or the username is already taken
-	// commas are not allowed because the customers file uses them to separate fields
-	public synchronized String registerCustomer(String request) {
-		if(request.contains(",")) {
-			return "FAIL";
+	// REGISTER: adds a new customer (with no accounts and a unique ID) to the customers HashMap
+	// and saves it. The client handler asks for each detail on its own line, so names and
+	// passwords can contain spaces.
+	// Returns "SUCCESS", or "FAIL: <reason>" so the customer knows what to fix.
+	public synchronized String registerCustomer(String fullName, String userName, String password) {
+		if(fullName == null || userName == null || password == null) {
+			return "FAIL: Full name, username and password are all required";
 		}
-		String[] parts = request.trim().split("\\s+");
-		// need at least: REGISTER, one word of name, username, password
-		if(parts.length < 4) {
-			return "FAIL";
+		fullName = fullName.trim();
+		userName = userName.trim();
+		if(fullName.isEmpty()) {
+			return "FAIL: Full name cannot be empty";
 		}
-		String userName = parts[parts.length - 2];
-		String password = parts[parts.length - 1];
-		String fullName = String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length - 2));
+		if(userName.isEmpty() || userName.contains(" ")) {
+			return "FAIL: Username cannot be empty or contain spaces";
+		}
+		if(password.isEmpty()) {
+			return "FAIL: Password cannot be empty";
+		}
+		// commas are not allowed because the customers file uses them to separate fields
+		if(fullName.contains(",") || userName.contains(",") || password.contains(",")) {
+			return "FAIL: Full name, username and password cannot contain commas";
+		}
 		if(customers.containsKey(userName)) {
-			return "FAIL";
+			return "FAIL: Username " + userName + " is already taken";
+		}
+		if(!canSave) {
+			return "FAIL: Customer data could not be loaded, so new customers cannot be saved right now";
 		}
 		customers.put(userName, new Customer(nextId++, fullName, password));
-		saveCustomers();
+		try {
+			database.save(customers);
+		} catch(IOException e) {
+			// undo, so we never tell the customer they're registered when they'd be lost on restart
+			customers.remove(userName);
+			System.out.println("ERROR: could not save customers: " + e.getMessage());
+			return "FAIL: Your details could not be saved, please try again later";
+		}
 		return "SUCCESS";
 	}
 

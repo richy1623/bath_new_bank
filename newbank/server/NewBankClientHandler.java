@@ -19,44 +19,62 @@ public class NewBankClientHandler extends Thread{
 		out = new PrintWriter(s.getOutputStream(), true);
 	}
 	
+	// REGISTER: asks for each detail on its own line, so the full name and password can contain
+	// spaces, then asks the bank to create the customer and sends back its reply.
+	// Returns false if the client disconnected part way through.
+	private boolean register() throws IOException {
+		out.println("Enter Full Name");
+		String fullName = in.readLine();
+		if(fullName == null) {
+			return false;
+		}
+		out.println("Enter Username");
+		String userName = in.readLine();
+		if(userName == null) {
+			return false;
+		}
+		out.println("Enter Password");
+		String password = in.readLine();
+		if(password == null) {
+			return false;
+		}
+		out.println(bank.registerCustomer(fullName, userName, password));
+		return true;
+	}
+
 	// asks for a username and password until the customer logs in.
-	// Returns their CustomerID, or null if they fail 3 times or disconnect.
-	// Each call starts with 3 fresh attempts, so logging out and back in resets the count.
+	// Returns their CustomerID, or null if the client disconnects.
 	private CustomerID logIn() throws IOException {
-		// the customer gets this many tries to log in before being disconnected
-		final int MAX_LOGIN_ATTEMPTS = 3;
-		int failedAttempts = 0;
 		CustomerID customer = null;
-		while(customer == null && failedAttempts < MAX_LOGIN_ATTEMPTS) {
-			// ask for user name; the user can type REGISTER <Full Name> <Username> <Password> here
-			// instead to create a new customer (this doesn't count as a login attempt)
+		while(customer == null) {
+			// ask for user name; the user can type REGISTER here instead to create a new customer
 			out.println("Enter Username");
 			String userName = in.readLine();
 			if(userName == null) {
-				break; // client disconnected
+				return null; // client disconnected
 			}
-			if(userName.startsWith("REGISTER")) {
-				out.println(bank.registerCustomer(userName));
+			if(userName.trim().equals("REGISTER")) {
+				if(!register()) {
+					return null; // client disconnected
+				}
+				continue;
+			}
+			if(userName.startsWith("REGISTER ")) {
+				// the old one-line format; point the customer to the new prompts
+				out.println("FAIL: Type REGISTER on its own and you will be asked for each detail");
 				continue;
 			}
 			// ask for password
 			out.println("Enter Password");
 			String password = in.readLine();
 			if(password == null) {
-				break; // client disconnected
+				return null; // client disconnected
 			}
 			out.println("Checking Details...");
 			// authenticate user and get customer ID token from bank for use in subsequent requests
 			customer = bank.checkLogInDetails(userName, password);
 			if(customer == null) {
-				failedAttempts++;
-				int attemptsLeft = MAX_LOGIN_ATTEMPTS - failedAttempts;
-				if(attemptsLeft > 0) {
-					out.println("Log In Failed. Attempts left: " + attemptsLeft);
-				}
-				else {
-					out.println("Log In Failed. Too many failed attempts, disconnecting.");
-				}
+				out.println("Log In Failed. Please try again.");
 			}
 		}
 		return customer;
@@ -69,12 +87,15 @@ public class NewBankClientHandler extends Thread{
 			while(true) {
 				CustomerID customer = logIn();
 				if(customer == null) {
-					break; // too many failed attempts, or client disconnected
+					break; // client disconnected
 				}
 				// the user is authenticated, so get requests from the user and process them
 				out.println("Log In Successful. What do you want to do?");
 				while(true) {
 					String request = in.readLine();
+					if(request == null) {
+						return; // client disconnected; the finally block closes the streams
+					}
 					System.out.println("Request from " + customer.getKey());
 					// LOGOUT ends this session (handled here, not in NewBank, because it's about the
 					// connection rather than the customer's data)
