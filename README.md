@@ -2,7 +2,7 @@
 
 A small bank client and server written with plain Java sockets. The server listens on port 14002, gives each connection its own thread, asks for a username and password, then reads commands one line at a time.
 
-The protocol in [protocol.txt](protocol.txt) lists four commands. Only `SHOWMYACCOUNTS` is implemented so far.
+The protocol in [protocol.txt](protocol.txt) lists five commands. `REGISTER` and `SHOWMYACCOUNTS` are implemented so far.
 
 ## Contents
 
@@ -21,6 +21,7 @@ The protocol in [protocol.txt](protocol.txt) lists four commands. Only `SHOWMYAC
 ```text
 bath_new_bank/
 ├── protocol.txt
+├── customers_database.txt   (created on first run, not in git)
 └── newbank/
     ├── client/
     │   └── ExampleClient.java
@@ -38,20 +39,22 @@ bath_new_bank/
 | `NewBankServer` | Opens `ServerSocket(14002)` and loops on `accept()`, starting a `NewBankClientHandler` for each connection. |
 | `NewBankClientHandler` | Runs the login prompts, then reads requests in a loop and writes back the replies. |
 | `NewBank` | Singleton holding all customers in a `HashMap<String, Customer>`. Handles login and command dispatch; both methods are `synchronized`. |
-| `Customer` | A list of `Account`s. |
+| `Customer` | A unique number ID, a full name, a password and a list of `Account`s. |
 | `Account` | An account name and a `double` balance (the field is called `openingBalance`). |
 | `CustomerID` | Wraps the username. Handed out on login and passed with every request. |
 | `ExampleClient` | Console client. The main thread sends what you type; a second thread prints whatever the server sends back. |
 
 ### Test data
 
-`NewBank.addTestData()` creates three customers at startup. Nothing is saved, so every restart starts from the same data.
+`NewBank.addTestData()` holds these three customers. On the first run there's no `customers_database.txt` yet, so the server creates it from this test data. After that, customers are loaded from the file (see [Saved data](#saved-data)).
 
-| Username | Account | Balance |
-|---|---|---|
-| `Bhagy` | Main | 1000.0 |
-| `Christina` | Savings | 1500.0 |
-| `John` | Checking | 250.0 |
+| ID | Username | Account | Balance |
+|---|---|---|---|
+| 1 | `Bhagy` | Main | 1000.0 |
+| 2 | `Christina` | Savings | 1500.0 |
+| 3 | `John` | Checking | 250.0 |
+
+The test customers have no full name or password.
 
 ## Running it
 
@@ -84,12 +87,59 @@ FAIL
 
 The password isn't checked yet, so anything works. `nc localhost 14002` works just as well as the example client.
 
+To create a new customer, type `REGISTER <Full Name> <Username> <Password>` at the `Enter Username` prompt. The full name can be several words, and the last two words are always the username and password. The new customer gets a unique number ID and no accounts yet, so `SHOWMYACCOUNTS` returns an empty line.
+
+```text
+Enter Username
+> REGISTER Alice Smith asmith secret
+SUCCESS
+Enter Username
+> asmith
+Enter Password
+> secret
+Checking Details...
+Log In Successful. What do you want to do?
+```
+
+Registered customers are saved to `customers_database.txt`, so they are still there after the server restarts. Names, usernames and passwords can't contain commas, because commas separate the fields in that file.
+
+### Saved data
+
+Customers are stored in a plain text file, `customers_database.txt`, in the project folder. The file isn't part of the repository: it's listed in `.gitignore`, and each person's copy is created the first time they run the server. The server finds it by name in the folder it's started from, so start the server from the project folder as shown in [Running it](#running-it). If you start it from somewhere else, it creates a new file there instead.
+
+When the server starts (when the first client connects, which is when `NewBank` is first created), it checks whether `customers_database.txt` exists:
+
+- **If it exists,** the customers are loaded from it.
+- **If it doesn't,** it is created and filled with the test data from `addTestData()`.
+
+Other details:
+
+- **When it's written:** after every successful `REGISTER`. The whole file is rewritten each time.
+- **When it's written:** after every successful `REGISTER`. The whole file is rewritten each time.
+- **Format:** one customer per line, `id,username,full name,password,AccountName:balance;AccountName:balance`.
+
+```text
+1,Bhagy,,,Main:1000.0
+2,Christina,,,Savings:1500.0
+3,John,,,Checking:250.0
+4,asmith,Alice Smith,secret,
+```
+
+Test customers have no full name or password, so those fields are empty. A newly registered customer has no accounts, so the last field is empty. Line order isn't fixed, because a `HashMap` has no order.
+
+**IDs:** each customer has a unique number ID. When the file is loaded, `NewBank` remembers the highest ID in it, and each new `REGISTER` gets the next number up. IDs are never reused, even after a restart. The `HashMap` is still keyed by username, because that's what customers log in with.
+
+To go back to just the test data, stop the server and delete `customers_database.txt`. The next run recreates it from `addTestData()`.
+
+The code is in `NewBank.saveCustomers()` and `NewBank.loadCustomers()`. It only uses `java.io`, with no external libraries.
+
 ## Protocol
 
 Everything is plain text over TCP, one message per line. After the username and password lines, each command you send gets exactly one line back. Commands must match exactly, including case, so `showmyaccounts` gets `FAIL`.
 
 | Command | Example | Reply | Implemented |
 |---|---|---|---|
+| `REGISTER <Full Name> <Username> <Password>` | `REGISTER Alice Smith asmith secret` | `SUCCESS`, or `FAIL` if the format is wrong, the username is taken, or anything contains a comma. Typed at the `Enter Username` prompt, before login. | Yes |
 | `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | Accounts and balances, e.g. `Main: 1000.0` | Yes |
 | `NEWACCOUNT <Name>` | `NEWACCOUNT Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 | `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |

@@ -1,6 +1,18 @@
 This document details the protocol for interacting with the NewBank server.  
 
-A customer enters the command below and sees the messages returned 
+REGISTER <Full Name> <Username> <Password>
+e.g. REGISTER Alice Smith asmith secret
+Typed at the "Enter Username" prompt, before logging in.
+The full name can be one or more words. The last two words are always taken
+as the username and password, so usernames and passwords can't contain spaces.
+Adds a new customer with no accounts (so nothing to show and a 0.00 total),
+and gives them a unique number ID (one more than the highest ID so far).
+Returns SUCCESS, or FAIL if the format is wrong (fewer than three values),
+the username is already taken, or anything contains a comma.
+The new customer is saved to customers_database.txt, so it survives a server restart.
+The server then asks "Enter Username" again so the new customer can log in.
+
+Once logged in, a customer enters the commands below and sees the messages returned
 
 SHOWMYACCOUNTS
 Returns a list of all the customers accounts along with their current balance 

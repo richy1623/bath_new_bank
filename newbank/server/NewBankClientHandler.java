@@ -22,9 +22,15 @@ public class NewBankClientHandler extends Thread{
 	public void run() {
 		// keep getting requests from the client and processing them
 		try {
-			// ask for user name
+			// ask for user name; the user can type REGISTER <Username> <Password> here instead
+			// to create a new customer, and is then asked for a username again so they can log in
 			out.println("Enter Username");
 			String userName = in.readLine();
+			while(userName != null && userName.startsWith("REGISTER")) {
+				out.println(bank.registerCustomer(userName));
+				out.println("Enter Username");
+				userName = in.readLine();
+			}
 			// ask for password
 			out.println("Enter Password");
 			String password = in.readLine();
