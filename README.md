@@ -2,7 +2,7 @@
 
 A small bank client and server written with plain Java sockets. The server listens on port 14002, gives each connection its own thread, asks for a username and password, then reads commands one line at a time.
 
-The protocol in [protocol.txt](protocol.txt) lists four commands. Only `SHOWMYACCOUNTS` is implemented so far.
+The protocol in [protocol.txt](protocol.txt) lists five commands. `REGISTER` and `SHOWMYACCOUNTS` are implemented so far.
 
 ## Contents
 
@@ -21,37 +21,49 @@ The protocol in [protocol.txt](protocol.txt) lists four commands. Only `SHOWMYAC
 ```text
 bath_new_bank/
 ├── protocol.txt
-└── newbank/
-    ├── client/
-    │   └── ExampleClient.java
-    └── server/
-        ├── NewBankServer.java
-        ├── NewBankClientHandler.java
-        ├── NewBank.java
-        ├── Customer.java
-        ├── Account.java
-        └── CustomerID.java
+├── customers_database.txt   (created on first run, not in git)
+├── lib/
+│   └── junit-platform-console-standalone-1.11.4.jar   (JUnit 5, for the tests)
+├── newbank/
+│   ├── client/
+│   │   └── ExampleClient.java
+│   └── server/
+│       ├── NewBankServer.java
+│       ├── NewBankClientHandler.java
+│       ├── NewBank.java
+│       ├── CustomerDatabase.java
+│       ├── Customer.java
+│       ├── Account.java
+│       └── CustomerID.java
+└── test/
+    └── newbank/server/
+        ├── NewBankTest.java
+        ├── CustomerDatabaseTest.java
+        └── CustomerTest.java
 ```
 
 | Class | What it does |
 |---|---|
 | `NewBankServer` | Opens `ServerSocket(14002)` and loops on `accept()`, starting a `NewBankClientHandler` for each connection. |
-| `NewBankClientHandler` | Runs the login prompts, then reads requests in a loop and writes back the replies. |
-| `NewBank` | Singleton holding all customers in a `HashMap<String, Customer>`. Handles login and command dispatch; both methods are `synchronized`. |
-| `Customer` | A list of `Account`s. |
+| `NewBankClientHandler` | Runs the register and login prompts, then reads requests in a loop and writes back the replies. |
+| `NewBank` | Singleton holding all customers in a `HashMap<String, Customer>`. Handles registration, login and command dispatch; its public methods are `synchronized`. |
+| `CustomerDatabase` | Saves customers to and loads them from `customers_database.txt`. |
+| `Customer` | A unique number ID, a full name, a password and a list of `Account`s. Its only constructor takes all three, so there's no customer without an ID. |
 | `Account` | An account name and a `double` balance (the field is called `openingBalance`). |
 | `CustomerID` | Wraps the username. Handed out on login and passed with every request. |
 | `ExampleClient` | Console client. The main thread sends what you type; a second thread prints whatever the server sends back. |
 
 ### Test data
 
-`NewBank.addTestData()` creates three customers at startup. Nothing is saved, so every restart starts from the same data.
+`NewBank.addTestData()` holds these three customers. On the first run there's no `customers_database.txt` yet, so the server creates it from this test data. After that, customers are loaded from the file (see [Saved data](#saved-data)).
 
-| Username | Account | Balance |
-|---|---|---|
-| `Bhagy` | Main | 1000.0 |
-| `Christina` | Savings | 1500.0 |
-| `John` | Checking | 250.0 |
+| ID | Username | Account | Balance |
+|---|---|---|---|
+| 1 | `Bhagy` | Main | 1000.0 |
+| 2 | `Christina` | Savings | 1500.0 |
+| 3 | `John` | Checking | 250.0 |
+
+The test customers have no full name or password.
 
 ## Running it
 
@@ -67,13 +79,39 @@ java -cp out newbank.server.NewBankServer
 java -cp out newbank.client.ExampleClient
 ```
 
+### Running the tests
+
+The tests use JUnit 5, from the single jar in `lib/`. They need JDK 11 or later. Each test uses its own temporary folder, so your `customers_database.txt` is never touched.
+
+```bash
+javac -d out -cp lib/junit-platform-console-standalone-1.11.4.jar newbank/server/*.java newbank/client/*.java test/newbank/server/*.java
+```
+
+```bash
+java -jar lib/junit-platform-console-standalone-1.11.4.jar execute --class-path out --scan-class-path
+```
+
+Two `ERROR:` lines are printed, and both are expected. They come from tests that break things on purpose:
+- `could not load customers ... is not valid` comes from a test that uses a damaged file.
+- `could not save customers ... (Access is denied)` comes from a test that makes the file read-only, to check that a failed save is reported.
+
+| Test class | What it checks |
+|---|---|
+| `CustomerTest` | Password checking, including blank passwords for test customers. |
+| `CustomerDatabaseTest` | Save then load gives back the same customers; damaged files and failed saves throw an error. |
+| `NewBankTest` | Register (including every `FAIL` reason and passwords with spaces), login, unique IDs across restarts, a damaged file is never overwritten, and a failed save doesn't report `SUCCESS`. |
+
+`NewBank` has a package-private constructor, `NewBank(String customersFile)`, so the tests can create a bank that uses a temporary file. The server itself always uses `customers_database.txt`.
+
+### Using it
+
 A session looks like this (lines starting with `>` are typed by you):
 
 ```text
 Enter Username
 > Bhagy
 Enter Password
-> whatever
+>
 Checking Details...
 Log In Successful. What do you want to do?
 > SHOWMYACCOUNTS
@@ -82,7 +120,104 @@ Main: 1000.0
 FAIL
 ```
 
-The password isn't checked yet, so anything works. `nc localhost 14002` works just as well as the example client.
+`nc localhost 14002` works just as well as the example client.
+
+### Registering
+
+To create a new customer, type `REGISTER` on its own at the `Enter Username` prompt. The server then asks for each detail on its own line, so the full name and password can contain spaces. The new customer gets a unique number ID and no accounts yet, so `SHOWMYACCOUNTS` returns an empty line.
+
+```text
+Enter Username
+> REGISTER
+Enter Full Name
+> Alice Smith
+Enter Username
+> asmith
+Enter Password
+> my secret
+SUCCESS
+Enter Username
+> asmith
+Enter Password
+> my secret
+Checking Details...
+Log In Successful. What do you want to do?
+```
+
+If something is wrong, the reply says what, for example `FAIL: Username asmith is already taken` or `FAIL: Password cannot be empty`. [protocol.txt](protocol.txt) lists every reason.
+
+Usernames can't contain spaces. Names, usernames and passwords can't contain commas, because commas separate the fields in the saved file. Registered customers are saved to `customers_database.txt`, so they are still there after the server restarts. `SUCCESS` is only sent once the save has worked.
+
+The checks are in `NewBank.registerCustomer()`. The prompts are in `NewBankClientHandler.register()`.
+
+### Logging in
+
+The username must exist and the password must match the one given at `REGISTER`. The test customers have no password, so leave the password blank (just press Enter), as in the example above.
+
+If the login fails, the server asks for the username again. There's no limit on attempts: a limit kept per connection doesn't add security, because a client can simply reconnect.
+
+```text
+Enter Username
+> asmith
+Enter Password
+> wrong
+Checking Details...
+Log In Failed. Please try again.
+Enter Username
+```
+
+The check is in `NewBank.checkLogInDetails()` and `Customer.checkPassword()`. The prompts are in `NewBankClientHandler.logIn()`.
+
+If the client disconnects (closes the window or presses Ctrl+C), `readLine()` returns `null`. The handler stops and closes the connection, both before and after login.
+
+### Logging out
+
+Type `LOGOUT` once logged in. The server says goodbye and goes back to the login prompt, so you can log in as someone else, or `REGISTER`, without restarting the client:
+
+```text
+> LOGOUT
+Log Out Successful. Goodbye Bhagy.
+Enter Username
+```
+
+`LOGOUT` must be in capitals, like the other commands.
+
+`LOGOUT` is handled in `NewBankClientHandler.run()` rather than `NewBank.processRequest()`, because it ends the connection's session rather than changing the customer's data. `run()` loops: call `logIn()`, process commands until `LOGOUT`, then call `logIn()` again.
+
+### Saved data
+
+Customers are stored in a plain text file, `customers_database.txt`, in the project folder. The file isn't part of the repository: it's listed in `.gitignore`, and each person's copy is created the first time they run the server. The server finds it by name in the folder it's started from, so start the server from the project folder as shown in [Running it](#running-it). If you start it from somewhere else, it creates a new file there instead.
+
+When the server starts (when the first client connects, which is when `NewBank` is first created), it checks whether `customers_database.txt` exists:
+
+- **If it exists,** the customers are loaded from it.
+- **If it doesn't,** it is created and filled with the test data from `addTestData()`.
+
+Other details:
+
+- **When it's written:** after every successful `REGISTER`. The whole file is rewritten each time.
+- **Format:** one customer per line, `id,username,full name,password,AccountName:balance;AccountName:balance`.
+
+```text
+1,Bhagy,,,Main:1000.0
+2,Christina,,,Savings:1500.0
+3,John,,,Checking:250.0
+4,asmith,Alice Smith,secret,
+```
+
+Test customers have no full name or password, so those fields are empty. A newly registered customer has no accounts, so the last field is empty. Line order isn't fixed, because a `HashMap` has no order.
+
+**IDs:** each customer has a unique number ID. When the file is loaded, `NewBank` remembers the highest ID in it, and each new `REGISTER` gets the next number up. IDs are never reused, even after a restart. The `HashMap` is still keyed by username, because that's what customers log in with.
+
+To go back to just the test data, stop the server and delete `customers_database.txt`. The next run recreates it from `addTestData()`.
+
+The code is in the `CustomerDatabase` class (`save()` and `load()`). It only uses `java.io`, with no external libraries.
+
+**When something goes wrong:**
+
+- **The file can't be loaded** (it's damaged, or a line is missing a field or has a bad number). The server prints an error and starts with no customers, and saving is switched off. This stops the empty list in memory from overwriting the real file and losing everyone. `REGISTER` replies `FAIL: Customer data could not be loaded...`. Fix or remove the file and restart.
+- **A save fails** (for example, the file is read-only). The new customer is removed again and `REGISTER` replies `FAIL: Your details could not be saved...`. This means a customer is never told they're registered when they'd be lost on the next restart.
+- **Loading is all or nothing.** `load()` only returns the customers once every line has been read successfully, so the bank never runs with half of them.
 
 ## Protocol
 
@@ -90,6 +225,8 @@ Everything is plain text over TCP, one message per line. After the username and 
 
 | Command | Example | Reply | Implemented |
 |---|---|---|---|
+| `REGISTER` | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes |
+| `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
 | `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | Accounts and balances, e.g. `Main: 1000.0` | Yes |
 | `NEWACCOUNT <Name>` | `NEWACCOUNT Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 | `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
@@ -157,20 +294,38 @@ classDiagram
         -BufferedReader in
         -PrintWriter out
         +NewBankClientHandler(Socket s)
+        -register() boolean
+        -logIn() CustomerID
         +run()
     }
     class NewBank {
         -NewBank bank$
         -HashMap~String,Customer~ customers
-        -NewBank()
+        -CustomerDatabase database
+        -boolean canSave
+        -int nextId
+        ~NewBank(String customersFile)
         -addTestData()
         +getBank()$ NewBank
         +checkLogInDetails(String userName, String password) CustomerID
+        +registerCustomer(String fullName, String userName, String password) String
         +processRequest(CustomerID customer, String request) String
         -showMyAccounts(CustomerID customer) String
     }
+    class CustomerDatabase {
+        -String fileName
+        +CustomerDatabase(String fileName)
+        +exists() boolean
+        +save(HashMap customers)
+        +load() HashMap
+    }
     class Customer {
         -ArrayList~Account~ accounts
+        -int id
+        -String fullName
+        -String password
+        +Customer(int id, String fullName, String password)
+        +checkPassword(String attempt) boolean
         +accountsToString() String
         +addAccount(Account account)
     }
@@ -199,6 +354,7 @@ classDiagram
     NewBankClientHandler --> NewBank : uses singleton
     NewBankClientHandler ..> CustomerID : holds after login
     NewBank "1" o-- "*" Customer : customers (key = userName)
+    NewBank --> CustomerDatabase : saves and loads with
     Customer "1" o-- "*" Account : accounts
     NewBank ..> CustomerID : issues
     ExampleClient ..> NewBankServer : TCP port 14002
@@ -225,7 +381,7 @@ sequenceDiagram
     C->>H: "****"
     H-->>C: "Checking Details..."
     H->>B: checkLogInDetails(user, pwd)
-    alt username exists
+    alt username exists and password matches
         B-->>H: CustomerID("Bhagy")
         H-->>C: "Log In Successful. What do you want to do?"
         loop every line the user sends
@@ -235,10 +391,14 @@ sequenceDiagram
             B-->>H: "Main: 1000.0"
             H-->>C: "Main: 1000.0"
         end
-    else unknown username
+        U->>C: LOGOUT
+        C->>H: "LOGOUT"
+        H-->>C: "Log Out Successful. Goodbye Bhagy."
+        H-->>C: "Enter Username"
+    else unknown username or wrong password
         B-->>H: null
-        H-->>C: "Log In Failed"
-        H->>H: close streams and exit
+        H-->>C: "Log In Failed. Please try again."
+        Note over C,H: back to "Enter Username" (no limit on attempts)
     end
 ```
 
@@ -253,8 +413,10 @@ stateDiagram-v2
     AwaitUsername --> AwaitPassword : got username
     AwaitPassword --> Authenticating : got password
     Authenticating --> LoggedIn : CustomerID returned
-    Authenticating --> Rejected : null returned
-    Rejected --> Closed : send "Log In Failed"
+    Authenticating --> AwaitUsername : null returned, send "Log In Failed"
+    AwaitUsername --> Registering : REGISTER
+    Registering --> AwaitUsername : full name, username, password read, reply sent
+    AwaitUsername --> Closed : disconnect
 
     state LoggedIn {
         [*] --> AwaitCommand
@@ -262,14 +424,14 @@ stateDiagram-v2
         Processing --> AwaitCommand : reply sent
     }
 
+    LoggedIn --> AwaitUsername : LOGOUT
     LoggedIn --> Closed : IOException or disconnect
     Closed --> [*]
 
     note right of LoggedIn
         On disconnect, readLine() returns null.
-        switch(null) then throws a
-        NullPointerException, so today the
-        thread crashes instead of closing cleanly.
+        The handler stops and closes the
+        streams in its finally block.
     end note
 ```
 
@@ -294,12 +456,17 @@ flowchart TD
     A([client connects]) --> B[accept]
     B --> C[start NewBankClientHandler]
     C --> D[ask for and read username]
+    D -- REGISTER --> RG["ask full name, username, password<br/>send SUCCESS or FAIL: reason"] --> D
+    D -- "null (disconnected)" --> Z([close streams])
     D --> E[ask for and read password]
-    E --> F{"username known?<br/>(password ignored)"}
-    F -- no --> G[send Log In Failed] --> Z([close streams])
+    E --> F{"username known and<br/>password matches?"}
+    F -- no --> G[send Log In Failed] --> D
     F -- yes --> H[send Log In Successful]
     H --> I[/read a line/]
-    I --> J{customer exists?}
+    I -- "null (disconnected)" --> Z
+    I --> LO{LOGOUT?}
+    LO -- yes --> LS[send Log Out Successful] --> D
+    LO -- no --> J{customer exists?}
     J -- no --> K[FAIL]
     J -- yes --> L{which command?}
     L -- SHOWMYACCOUNTS --> M[list accounts]
@@ -345,6 +512,6 @@ flowchart LR
 
 Each connection gets a new thread. There's no pool and no cap on connections.
 
-Both public methods on `NewBank` are `synchronized` on the same instance, so requests from different clients run one at a time. That keeps the data safe without any other locking, at the cost of throughput.
+The public methods on `NewBank` are `synchronized` on the same instance, so requests from different clients run one at a time. That keeps the data safe without any other locking, at the cost of throughput.
 
 `NewBank` is created when the class loads (`private static final`), so there's no race in creating the singleton.

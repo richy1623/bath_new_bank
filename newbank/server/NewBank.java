@@ -1,27 +1,66 @@
 package newbank.server;
 
+import java.io.IOException;
 import java.util.HashMap;
 
 public class NewBank {
-	
-	private static final NewBank bank = new NewBank();
+
+	// customers are saved to this plain text file (in the folder the server is started from,
+	// which is the project folder when you follow the README)
+	private static final String CUSTOMERS_FILE = "customers_database.txt";
+
+	private static final NewBank bank = new NewBank(CUSTOMERS_FILE);
 	private HashMap<String,Customer> customers;
-	
-	private NewBank() {
+	private CustomerDatabase database;
+	// false if the file exists but couldn't be loaded. Saving is then switched off,
+	// so the empty customer list in memory never overwrites the real file.
+	private boolean canSave = true;
+	// the ID the next registered customer will get (one more than the highest ID so far)
+	private int nextId = 1;
+
+	// package-private (not private) so the tests can create a bank that uses a temporary file
+	NewBank(String customersFile) {
 		customers = new HashMap<>();
-		addTestData();
+		database = new CustomerDatabase(customersFile);
+		// on start: if the file exists, load it and move on;
+		// if not (first run), create it from the test data
+		if(database.exists()) {
+			try {
+				customers = database.load();
+				// keep nextId above every ID already used, so IDs stay unique
+				for(Customer c : customers.values()) {
+					if(c.getId() >= nextId) {
+						nextId = c.getId() + 1;
+					}
+				}
+			} catch(IOException e) {
+				canSave = false;
+				System.out.println("ERROR: could not load customers: " + e.getMessage());
+				System.out.println("Saving is switched off so " + customersFile + " is not overwritten. "
+						+ "Fix or remove the file and restart the server.");
+			}
+		}
+		else {
+			addTestData();
+			try {
+				database.save(customers);
+			} catch(IOException e) {
+				System.out.println("ERROR: could not create " + customersFile + ": " + e.getMessage());
+			}
+		}
 	}
-	
+
 	private void addTestData() {
-		Customer bhagy = new Customer();
+		// test customers get IDs 1-3 and have no full name or password
+		Customer bhagy = new Customer(nextId++, "", null);
 		bhagy.addAccount(new Account("Main", 1000.0));
 		customers.put("Bhagy", bhagy);
-		
-		Customer christina = new Customer();
+
+		Customer christina = new Customer(nextId++, "", null);
 		christina.addAccount(new Account("Savings", 1500.0));
 		customers.put("Christina", christina);
-		
-		Customer john = new Customer();
+
+		Customer john = new Customer(nextId++, "", null);
 		john.addAccount(new Account("Checking", 250.0));
 		customers.put("John", john);
 	}
@@ -30,11 +69,54 @@ public class NewBank {
 		return bank;
 	}
 	
+	// returns a CustomerID only if the username exists AND the password matches, otherwise null
 	public synchronized CustomerID checkLogInDetails(String userName, String password) {
-		if(customers.containsKey(userName)) {
+		Customer customer = customers.get(userName);
+		if(customer != null && customer.checkPassword(password)) {
 			return new CustomerID(userName);
 		}
 		return null;
+	}
+
+	// REGISTER: adds a new customer (with no accounts and a unique ID) to the customers HashMap
+	// and saves it. The client handler asks for each detail on its own line, so names and
+	// passwords can contain spaces.
+	// Returns "SUCCESS", or "FAIL: <reason>" so the customer knows what to fix.
+	public synchronized String registerCustomer(String fullName, String userName, String password) {
+		if(fullName == null || userName == null || password == null) {
+			return "FAIL: Full name, username and password are all required";
+		}
+		fullName = fullName.trim();
+		userName = userName.trim();
+		if(fullName.isEmpty()) {
+			return "FAIL: Full name cannot be empty";
+		}
+		if(userName.isEmpty() || userName.contains(" ")) {
+			return "FAIL: Username cannot be empty or contain spaces";
+		}
+		if(password.isEmpty()) {
+			return "FAIL: Password cannot be empty";
+		}
+		// commas are not allowed because the customers file uses them to separate fields
+		if(fullName.contains(",") || userName.contains(",") || password.contains(",")) {
+			return "FAIL: Full name, username and password cannot contain commas";
+		}
+		if(customers.containsKey(userName)) {
+			return "FAIL: Username " + userName + " is already taken";
+		}
+		if(!canSave) {
+			return "FAIL: Customer data could not be loaded, so new customers cannot be saved right now";
+		}
+		customers.put(userName, new Customer(nextId++, fullName, password));
+		try {
+			database.save(customers);
+		} catch(IOException e) {
+			// undo, so we never tell the customer they're registered when they'd be lost on restart
+			customers.remove(userName);
+			System.out.println("ERROR: could not save customers: " + e.getMessage());
+			return "FAIL: Your details could not be saved, please try again later";
+		}
+		return "SUCCESS";
 	}
 
 	// commands from the NewBank customer are processed in this method
