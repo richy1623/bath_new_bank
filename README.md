@@ -2,7 +2,7 @@
 
 A small bank client and server written with plain Java sockets. The server listens on port 14002, gives each connection its own thread, asks for a username and password, then reads commands one line at a time.
 
-The protocol in [protocol.txt](protocol.txt) lists five commands. `REGISTER` and `SHOWMYACCOUNTS` are implemented so far.
+The protocol in [protocol.txt](protocol.txt) lists the socket commands. `REGISTER`, `SHOWMYACCOUNTS`, `NEWACCOUNT` and `SHOWACTIVITY` are implemented.
 
 ## Contents
 
@@ -49,7 +49,8 @@ bath_new_bank/
 | `NewBank` | Singleton holding all customers in a `HashMap<String, Customer>`. Handles registration, login and command dispatch; its public methods are `synchronized`. |
 | `CustomerDatabase` | Saves customers to and loads them from `customers_database.txt`. |
 | `Customer` | A unique number ID, a full name, a password and a list of `Account`s. Its only constructor takes all three, so there's no customer without an ID. |
-| `Account` | An account name and a `double` balance (the field is called `openingBalance`). |
+| `Account` | An account name, a `double` balance (the field is called `openingBalance`), and a list of `Transaction`s. |
+| `Transaction` | One account activity entry: account type, amount, date and beneficiary. |
 | `CustomerID` | Wraps the username. Handed out on login and passed with every request. |
 | `ExampleClient` | Console client. The main thread sends what you type; a second thread prints whatever the server sends back. |
 
@@ -117,7 +118,14 @@ Log In Successful. What do you want to do?
 > SHOWMYACCOUNTS
 Main: 1000.0
 > NEWACCOUNT Savings
-FAIL
+SUCCESS
+> NEWACCOUNT Cheque
+SUCCESS
+> SHOWMYACCOUNTS
+Savings: 0.0
+Cheque: 0.0
+> SHOWACTIVITY Savings
+Savings | 0.0 | 2026-11-17 | Opening
 ```
 
 `nc localhost 14002` works just as well as the example client.
@@ -195,8 +203,9 @@ When the server starts (when the first client connects, which is when `NewBank` 
 
 Other details:
 
-- **When it's written:** after every successful `REGISTER`. The whole file is rewritten each time.
-- **Format:** one customer per line, `id,username,full name,password,AccountName:balance;AccountName:balance`.
+- **When it's written:** after every successful `REGISTER` or `NEWACCOUNT`. The whole file is rewritten each time.
+- **Format:** one customer per line, `id,username,full name,password,AccountName:balance[#txs];AccountName:balance[#txs]`.
+  Optional transactions after `#` use `date~amount~beneficiary`, separated by `|`.
 
 ```text
 1,Bhagy,,,Main:1000.0
@@ -228,7 +237,8 @@ Everything is plain text over TCP, one message per line. After the username and 
 | `REGISTER` | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes |
 | `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
 | `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | Accounts and balances, e.g. `Main: 1000.0` | Yes |
-| `NEWACCOUNT <Name>` | `NEWACCOUNT Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
+| `NEWACCOUNT <Type>` | `NEWACCOUNT Savings` | `SUCCESS`, or `FAIL: <reason>`. Opening balance is always 0. Types: Savings, Cheque, Investment. | Yes |
+| `SHOWACTIVITY <AccountType>` | `SHOWACTIVITY Savings` | Transaction lines `type | amount | date | beneficiary`, or `No transactions` / `FAIL: <reason>` | Yes |
 | `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 | `PAY <Person/Company> <Amount>` | `PAY John 100` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 
@@ -485,9 +495,10 @@ flowchart TD
     R[/request line/] --> P[split on whitespace]
     P --> Q{first word}
     Q -- SHOWMYACCOUNTS --> S1[list accounts]
-    Q -- NEWACCOUNT --> V1{one name given<br/>and not already used?}
-    V1 -- yes --> S2[add account with balance 0] --> OK([SUCCESS])
+    Q -- NEWACCOUNT --> V1{type is Savings/Cheque/Investment<br/>and not already used?}
+    V1 -- yes --> S2[add account with balance 0<br/>and Opening transaction] --> OK([SUCCESS])
     V1 -- no --> FAIL([FAIL])
+    Q -- SHOWACTIVITY --> S5[list transactions for account] --> OK
     Q -- MOVE --> V2{"amount > 0, both accounts exist,<br/>enough money in From?"}
     V2 -- yes --> S3[take from From, add to To] --> OK
     V2 -- no --> FAIL

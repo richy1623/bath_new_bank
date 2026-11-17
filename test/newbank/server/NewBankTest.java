@@ -126,7 +126,7 @@ class NewBankTest {
 
 	@Test
 	void failedSaveDoesNotReportSuccess() {
-		File file = new File(customersFile);
+		File file = new File(customersFile).getParentFile();
 		assertTrue(file.setWritable(false));   // make the save fail
 		try {
 			assertEquals("FAIL: Your details could not be saved, please try again later",
@@ -137,4 +137,33 @@ class NewBankTest {
 			file.setWritable(true);
 		}
 	}
+
+	// ---- NEWACCOUNT ----
+
+	@Test
+	void customerCanCreateMultipleAccountTypesWithOpeningBalance() {
+		bank.registerCustomer("Alice Smith", "asmith", "secret");
+		CustomerID id = new CustomerID("asmith");
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Savings"));
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Cheque"));
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Investment"));
+		String accounts = bank.processRequest(id, "SHOWMYACCOUNTS");
+		assertTrue(accounts.contains("Savings: 0.0"));
+		assertTrue(accounts.contains("Cheque: 0.0"));
+		assertTrue(accounts.contains("Investment: 0.0"));
+	}
+
+	@Test
+	void newAccountRejectsInvalidOrDuplicateType() {
+		bank.registerCustomer("Alice Smith", "asmith", "secret");
+		CustomerID id = new CustomerID("asmith");
+		assertEquals("FAIL: Account type must be Savings, Cheque or Investment",
+				bank.processRequest(id, "NEWACCOUNT Main"));
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Savings"));
+		assertEquals("FAIL: You already have a Savings account",
+				bank.processRequest(id, "NEWACCOUNT Savings"));
+		assertEquals("FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings",
+				bank.processRequest(id, "NEWACCOUNT"));
+	}
+
 }

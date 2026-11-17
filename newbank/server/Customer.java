@@ -40,6 +40,9 @@ public class Customer {
 	public String accountsToString() {
 		String s = "";
 		for(Account a : accounts) {
+			if(!s.isEmpty()) {
+				s += "\n";
+			}
 			s += a.toString();
 		}
 		return s;
@@ -47,6 +50,19 @@ public class Customer {
 
 	public void addAccount(Account account) {
 		accounts.add(account);
+	}
+
+	public Account getAccount(String accountName) {
+		for(Account a : accounts) {
+			if(a.getAccountName().equalsIgnoreCase(accountName)) {
+				return a;
+			}
+		}
+		return null;
+	}
+
+	public boolean hasAccountType(String accountType) {
+		return getAccount(accountType) != null;
 	}
 
 	// used when saving to the customers file; test customers have no password, so this can be null

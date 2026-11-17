@@ -1,6 +1,7 @@
 package newbank.server;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.HashMap;
 
 public class NewBank {
@@ -17,6 +18,9 @@ public class NewBank {
 	private boolean canSave = true;
 	// the ID the next registered customer will get (one more than the highest ID so far)
 	private int nextId = 1;
+
+	// only these account types may be created with NEWACCOUNT
+	private static final String[] VALID_ACCOUNT_TYPES = {"Savings", "Cheque", "Investment"};
 
 	// package-private (not private) so the tests can create a bank that uses a temporary file
 	NewBank(String customersFile) {
@@ -121,17 +125,102 @@ public class NewBank {
 
 	// commands from the NewBank customer are processed in this method
 	public synchronized String processRequest(CustomerID customer, String request) {
-		if(customers.containsKey(customer.getKey())) {
-			switch(request) {
-			case "SHOWMYACCOUNTS" : return showMyAccounts(customer);
-			default : return "FAIL";
-			}
+		if(request == null || !customers.containsKey(customer.getKey())) {
+			return "FAIL";
 		}
-		return "FAIL";
+		String trimmed = request.trim();
+		if(trimmed.isEmpty()) {
+			return "FAIL";
+		}
+		String[] parts = trimmed.split("\\s+");
+		String command = parts[0];
+		switch(command) {
+		case "SHOWMYACCOUNTS" :
+			return showMyAccounts(customer);
+		case "NEWACCOUNT" :
+			return newAccount(customer, parts);
+		case "SHOWACTIVITY" :
+			return showActivity(customer, parts);
+		default :
+			return "FAIL";
+		}
 	}
 	
 	private String showMyAccounts(CustomerID customer) {
 		return (customers.get(customer.getKey())).accountsToString();
+	}
+
+	// NEWACCOUNT <Type>: opening balance is always 0
+	private String newAccount(CustomerID customerID, String[] parts) {
+		if(parts.length != 2) {
+			return "FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings";
+		}
+		String canonicalType = canonicalAccountType(parts[1]);
+		if(canonicalType == null) {
+			return "FAIL: Account type must be Savings, Cheque or Investment";
+		}
+		Customer customer = customers.get(customerID.getKey());
+		if(customer.hasAccountType(canonicalType)) {
+			return "FAIL: You already have a " + canonicalType + " account";
+		}
+		if(!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		Account account = new Account(canonicalType, 0.0);
+		account.addTransaction(new Transaction(canonicalType, 0.0, LocalDate.now(), "Opening"));
+		customer.addAccount(account);
+		String saveError = saveCustomers();
+		if(saveError != null) {
+			customer.getAccounts().remove(account);
+			return saveError;
+		}
+		return "SUCCESS";
+	}
+
+	// SHOWACTIVITY <AccountType>
+	private String showActivity(CustomerID customerID, String[] parts) {
+		if(parts.length != 2) {
+			return "FAIL: Type SHOWACTIVITY <AccountType>, for example SHOWACTIVITY Savings";
+		}
+		Customer customer = customers.get(customerID.getKey());
+		Account account = customer.getAccount(parts[1]);
+		if(account == null) {
+			return "FAIL: Account " + parts[1] + " not found";
+		}
+		if(account.getTransactions().isEmpty()) {
+			return "No transactions";
+		}
+		String result = "";
+		for(Transaction t : account.getTransactions()) {
+			if(!result.isEmpty()) {
+				result += "\n";
+			}
+			result += t.toString();
+		}
+		return result;
+	}
+
+	private String canonicalAccountType(String type) {
+		if(type == null) {
+			return null;
+		}
+		for(String valid : VALID_ACCOUNT_TYPES) {
+			if(valid.equalsIgnoreCase(type)) {
+				return valid;
+			}
+		}
+		return null;
+	}
+
+	// returns null on success, or a FAIL message on failure
+	private String saveCustomers() {
+		try {
+			database.save(customers);
+			return null;
+		} catch(IOException e) {
+			System.out.println("ERROR: could not save customers: " + e.getMessage());
+			return "FAIL: Your details could not be saved, please try again later";
+		}
 	}
 
 }
