@@ -57,43 +57,54 @@ bath_new_bank/
 
 `NewBank.addTestData()` holds these three customers. On the first run there's no `customers_database.txt` yet, so the server creates it from this test data. After that, customers are loaded from the file (see [Saved data](#saved-data)).
 
-| ID | Username | Account | Balance |
-|---|---|---|---|
-| 1 | `Bhagy` | Main | 1000.0 |
-| 2 | `Christina` | Savings | 1500.0 |
-| 3 | `John` | Checking | 250.0 |
+| ID  | Username    | Account  | Balance |
+| --- | ----------- | -------- | ------- |
+| 1   | `Bhagy`     | Main     | 1000.0  |
+| 2   | `Christina` | Savings  | 1500.0  |
+| 3   | `John`      | Checking | 250.0   |
 
 The test customers have no full name or password.
 
 ## Running it
 
-You need JDK 8 or later. There are no dependencies and no build tool.
+The following tools must be installed:
+
+- JDK 11
+- Maven
+
+## How to run tests
 
 ```bash
-javac -d out newbank/server/*.java newbank/client/*.java
-
-# terminal 1
-java -cp out newbank.server.NewBankServer
-
-# terminal 2
-java -cp out newbank.client.ExampleClient
+mvn clean verify
 ```
 
-### Running the tests
-
-The tests use JUnit 5, from the single jar in `lib/`. They need JDK 11 or later. Each test uses its own temporary folder, so your `customers_database.txt` is never touched.
+## How to the code formatter
 
 ```bash
-javac -d out -cp lib/junit-platform-console-standalone-1.11.4.jar newbank/server/*.java newbank/client/*.java test/newbank/server/*.java
+mvn spotless:apply
 ```
+
+## How to run the main application
+
+### Build the JAR
 
 ```bash
-java -jar lib/junit-platform-console-standalone-1.11.4.jar execute --class-path out --scan-class-path
+mvn clean package
 ```
 
-Two `ERROR:` lines are printed, and both are expected. They come from tests that break things on purpose:
-- `could not load customers ... is not valid` comes from a test that uses a damaged file.
-- `could not save customers ... (Access is denied)` comes from a test that makes the file read-only, to check that a failed save is reported.
+### Run the server
+
+```bash
+java -jar target/newbank-server.jar
+```
+
+### Run the client
+
+```bash
+java -jar target/newbank-client.jar
+```
+
+## Test Structure
 
 | Test class | What it checks |
 |---|---|

@@ -3,13 +3,14 @@ package newbank.server;
 import java.util.ArrayList;
 
 public class Customer {
-	
+
 	private ArrayList<Account> accounts;
 	private int id;
 	private String fullName;
 	private String password;
 
-	// the only constructor: every customer must have an ID, so there's no empty Customer()
+	// the only constructor: every customer must have an ID, so there's no empty
+	// Customer()
 	// (used by REGISTER, the test data, and when loading the customers file)
 	public Customer(int id, String fullName, String password) {
 		accounts = new ArrayList<>();
@@ -30,16 +31,16 @@ public class Customer {
 	// Test customers have no password (null, or "" once loaded from the file),
 	// so for them a blank attempt (just pressing Enter) matches.
 	public boolean checkPassword(String attempt) {
-		if(attempt == null) {
+		if (attempt == null) {
 			return false;
 		}
 		String saved = (password == null) ? "" : password;
 		return saved.equals(attempt);
 	}
-	
+
 	public String accountsToString() {
 		String s = "";
-		for(Account a : accounts) {
+		for (Account a : accounts) {
 			s += a.toString();
 		}
 		return s;
@@ -49,7 +50,8 @@ public class Customer {
 		accounts.add(account);
 	}
 
-	// used when saving to the customers file; test customers have no password, so this can be null
+	// used when saving to the customers file; test customers have no password, so
+	// this can be null
 	public String getPassword() {
 		return password;
 	}

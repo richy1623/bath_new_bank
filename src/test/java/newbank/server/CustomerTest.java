@@ -30,7 +30,8 @@ class CustomerTest {
 
 	@Test
 	void customerWithoutPasswordOnlyMatchesBlank() {
-		// test customers have no password (null in addTestData, "" once loaded from the file)
+		// test customers have no password (null in addTestData, "" once loaded from the
+		// file)
 		assertTrue(new Customer(1, "", null).checkPassword(""));
 		assertTrue(new Customer(1, "", "").checkPassword(""));
 		assertFalse(new Customer(1, "", null).checkPassword("anything"));

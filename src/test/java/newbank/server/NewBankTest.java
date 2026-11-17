@@ -21,7 +21,8 @@ class NewBankTest {
 
 	@BeforeEach
 	void setUp() {
-		// a bank using a temporary file, so the real customers_database.txt is never touched
+		// a bank using a temporary file, so the real customers_database.txt is never
+		// touched
 		customersFile = tempDir.resolve("customers_database.txt").toString();
 		bank = new NewBank(customersFile);
 	}
@@ -74,15 +75,15 @@ class NewBankTest {
 		bank.registerCustomer("Alice Smith", "asmith", "secret");
 		assertEquals("FAIL: Username asmith is already taken",
 				bank.registerCustomer("Another Alice", "asmith", "other"));
-		assertEquals("FAIL: Username Bhagy is already taken",
-				bank.registerCustomer("B", "Bhagy", "x"));
+		assertEquals("FAIL: Username Bhagy is already taken", bank.registerCustomer("B", "Bhagy", "x"));
 	}
 
 	@Test
 	void invalidDetailsFailWithReason() {
 		assertEquals("FAIL: Full name cannot be empty", bank.registerCustomer("  ", "asmith", "secret"));
 		assertEquals("FAIL: Username cannot be empty or contain spaces", bank.registerCustomer("Alice", "", "secret"));
-		assertEquals("FAIL: Username cannot be empty or contain spaces", bank.registerCustomer("Alice", "a smith", "secret"));
+		assertEquals("FAIL: Username cannot be empty or contain spaces",
+				bank.registerCustomer("Alice", "a smith", "secret"));
 		assertEquals("FAIL: Password cannot be empty", bank.registerCustomer("Alice", "asmith", ""));
 		assertEquals("FAIL: Full name, username and password cannot contain commas",
 				bank.registerCustomer("Smith, Alice", "asmith", "secret"));
@@ -104,9 +105,9 @@ class NewBankTest {
 
 	@Test
 	void idsAreUniqueAndContinueAfterRestart() throws IOException {
-		bank.registerCustomer("Alice Smith", "asmith", "secret");   // gets ID 4 (test customers are 1-3)
+		bank.registerCustomer("Alice Smith", "asmith", "secret"); // gets ID 4 (test customers are 1-3)
 		NewBank restarted = new NewBank(customersFile);
-		restarted.registerCustomer("Tom Lee", "tlee", "pw");          // must get ID 5, not reuse an ID
+		restarted.registerCustomer("Tom Lee", "tlee", "pw"); // must get ID 5, not reuse an ID
 		String file = Files.readString(Path.of(customersFile));
 		assertTrue(file.contains("4,asmith,Alice Smith,secret,"));
 		assertTrue(file.contains("5,tlee,Tom Lee,pw,"));
@@ -127,11 +128,12 @@ class NewBankTest {
 	@Test
 	void failedSaveDoesNotReportSuccess() {
 		File file = new File(customersFile);
-		assertTrue(file.setWritable(false));   // make the save fail
+		assertTrue(file.setWritable(false)); // make the save fail
 		try {
 			assertEquals("FAIL: Your details could not be saved, please try again later",
 					bank.registerCustomer("Alice Smith", "asmith", "secret"));
-			// the customer was taken back out, so they can't log in to an account that would vanish
+			// the customer was taken back out, so they can't log in to an account that
+			// would vanish
 			assertNull(bank.checkLogInDetails("asmith", "secret"));
 		} finally {
 			file.setWritable(true);

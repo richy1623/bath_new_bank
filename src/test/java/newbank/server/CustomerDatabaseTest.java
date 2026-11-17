@@ -30,7 +30,7 @@ class CustomerDatabaseTest {
 
 	@Test
 	void savedCustomersLoadBackTheSame() throws IOException {
-		HashMap<String,Customer> customers = new HashMap<>();
+		HashMap<String, Customer> customers = new HashMap<>();
 		Customer bhagy = new Customer(1, "", null);
 		bhagy.addAccount(new Account("Main", 1000.0));
 		bhagy.addAccount(new Account("Savings", 50.5));
@@ -39,7 +39,7 @@ class CustomerDatabaseTest {
 
 		CustomerDatabase db = new CustomerDatabase(file("customers.txt"));
 		db.save(customers);
-		HashMap<String,Customer> loaded = db.load();
+		HashMap<String, Customer> loaded = db.load();
 
 		assertEquals(2, loaded.size());
 		Customer alice = loaded.get("asmith");
@@ -65,8 +65,7 @@ class CustomerDatabaseTest {
 	@Test
 	void lineWithMissingFieldsFailsToLoad() throws IOException {
 		Files.writeString(tempDir.resolve("customers.txt"), "1,Bhagy,,,Main:1000.0\n2,Christina\n");
-		IOException e = assertThrows(IOException.class,
-				() -> new CustomerDatabase(file("customers.txt")).load());
+		IOException e = assertThrows(IOException.class, () -> new CustomerDatabase(file("customers.txt")).load());
 		assertTrue(e.getMessage().contains("line 2"));
 	}
 
@@ -78,7 +77,8 @@ class CustomerDatabaseTest {
 
 	@Test
 	void saveFailureIsReported() {
-		// a folder can't be written to as if it were a file, so the save must fail loudly
+		// a folder can't be written to as if it were a file, so the save must fail
+		// loudly
 		CustomerDatabase db = new CustomerDatabase(tempDir.toString());
 		assertThrows(IOException.class, () -> db.save(new HashMap<>()));
 	}
