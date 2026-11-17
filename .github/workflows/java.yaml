@@ -2,7 +2,7 @@ name: Java CI/CD
 on: [push]
 
 jobs:
-  Explore-GitHub-Actions:
+  java:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
