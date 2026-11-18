@@ -4,20 +4,14 @@ import java.time.LocalDate;
 
 public class Transaction {
 
-	private final String accountType;
 	private final double amount;
 	private final LocalDate date;
 	private final String beneficiary;
 
-	public Transaction(String accountType, double amount, LocalDate date, String beneficiary) {
-		this.accountType = accountType;
+	public Transaction(double amount, LocalDate date, String beneficiary) {
 		this.amount = amount;
 		this.date = date;
 		this.beneficiary = beneficiary;
-	}
-
-	public String getAccountType() {
-		return accountType;
 	}
 
 	public double getAmount() {
@@ -33,6 +27,6 @@ public class Transaction {
 	}
 
 	public String toString() {
-		return accountType + " | " + amount + " | " + date + " | " + beneficiary;
+		return amount + " | " + date + " | " + beneficiary;
 	}
 }

@@ -84,9 +84,9 @@ class NewBankTest {
 		assertEquals("FAIL: Username cannot be empty or contain spaces", bank.registerCustomer("Alice", "", "secret"));
 		assertEquals("FAIL: Username cannot be empty or contain spaces", bank.registerCustomer("Alice", "a smith", "secret"));
 		assertEquals("FAIL: Password cannot be empty", bank.registerCustomer("Alice", "asmith", ""));
-		assertEquals("FAIL: Full name, username and password cannot contain commas",
+		assertEquals("FAIL: Full name, username and password cannot contain file separators (, ; # | ~ :)",
 				bank.registerCustomer("Smith, Alice", "asmith", "secret"));
-		assertEquals("FAIL: Full name, username and password cannot contain commas",
+		assertEquals("FAIL: Full name, username and password cannot contain file separators (, ; # | ~ :)",
 				bank.registerCustomer("Alice", "asmith", "se,cret"));
 		// none of the failed attempts created the customer
 		assertNull(bank.checkLogInDetails("asmith", "secret"));
@@ -125,16 +125,17 @@ class NewBankTest {
 	}
 
 	@Test
-	void failedSaveDoesNotReportSuccess() {
-		File file = new File(customersFile).getParentFile();
-		assertTrue(file.setWritable(false));   // make the save fail
+	void failedSaveDoesNotReportSuccess() throws IOException {
+		Path file = Path.of(customersFile);
 		try {
+			Files.delete(file);
+			Files.createDirectory(file); // saving over a directory fails on every OS
 			assertEquals("FAIL: Your details could not be saved, please try again later",
 					bank.registerCustomer("Alice Smith", "asmith", "secret"));
 			// the customer was taken back out, so they can't log in to an account that would vanish
 			assertNull(bank.checkLogInDetails("asmith", "secret"));
 		} finally {
-			file.setWritable(true);
+			Files.deleteIfExists(file);
 		}
 	}
 

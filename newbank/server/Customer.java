@@ -41,7 +41,7 @@ public class Customer {
 		String s = "";
 		for(Account a : accounts) {
 			if(!s.isEmpty()) {
-				s += "\n";
+				s += ", ";
 			}
 			s += a.toString();
 		}

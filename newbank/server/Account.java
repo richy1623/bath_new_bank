@@ -23,7 +23,7 @@ public class Account {
 	}
 
 	public List<Transaction> getTransactions() {
-		return transactions;
+		return java.util.Collections.unmodifiableList(transactions);
 	}
 
 	public void addTransaction(Transaction transaction) {

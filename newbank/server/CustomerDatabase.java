@@ -19,7 +19,7 @@ import java.util.HashMap;
  * File format: one customer per line
  *   id,username,full name,password,AccountName:balance[#txs];AccountName:balance[#txs]
  * e.g.
- *   1,Bhagy,,,Main:1000.0                 (test customers have no full name or password)
+ *   1,Bhagy,,,Savings:1000.0#2026-11-17~1000.0~Opening (test customer)
  *   4,asmith,Alice Smith,secret,          (registered customer with no accounts yet)
  *   5,bob,Bob,pw,Savings:0.0#2026-11-17~0.0~Opening
  *
@@ -149,7 +149,6 @@ public class CustomerDatabase {
 			for(String tx : txPart.split("\\|")) {
 				String[] fields = tx.split("~", 3);
 				a.addTransaction(new Transaction(
-						accountName,
 						Double.parseDouble(fields[1]),
 						LocalDate.parse(fields[0]),
 						fields[2]));

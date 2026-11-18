@@ -50,7 +50,7 @@ bath_new_bank/
 | `CustomerDatabase` | Saves customers to and loads them from `customers_database.txt`. |
 | `Customer` | A unique number ID, a full name, a password and a list of `Account`s. Its only constructor takes all three, so there's no customer without an ID. |
 | `Account` | An account name, a `double` balance (the field is called `openingBalance`), and a list of `Transaction`s. |
-| `Transaction` | One account activity entry: account type, amount, date and beneficiary. |
+| `Transaction` | One account activity entry: amount, date and beneficiary. |
 | `CustomerID` | Wraps the username. Handed out on login and passed with every request. |
 | `ExampleClient` | Console client. The main thread sends what you type; a second thread prints whatever the server sends back. |
 
@@ -60,9 +60,9 @@ bath_new_bank/
 
 | ID | Username | Account | Balance |
 |---|---|---|---|
-| 1 | `Bhagy` | Main | 1000.0 |
+| 1 | `Bhagy` | Savings | 1000.0 |
 | 2 | `Christina` | Savings | 1500.0 |
-| 3 | `John` | Checking | 250.0 |
+| 3 | `John` | Cheque | 250.0 |
 
 The test customers have no full name or password.
 
@@ -92,9 +92,9 @@ javac -d out -cp lib/junit-platform-console-standalone-1.11.4.jar newbank/server
 java -jar lib/junit-platform-console-standalone-1.11.4.jar execute --class-path out --scan-class-path
 ```
 
-Two `ERROR:` lines are printed, and both are expected. They come from tests that break things on purpose:
+`ERROR:` lines are printed, and they are expected. They come from tests that break things on purpose:
 - `could not load customers ... is not valid` comes from a test that uses a damaged file.
-- `could not save customers ... (Access is denied)` comes from a test that makes the file read-only, to check that a failed save is reported.
+- `could not save customers ... is a directory` comes from tests that replace the customers file with a directory, to check that failed saves are reported on every OS.
 
 | Test class | What it checks |
 |---|---|
@@ -102,7 +102,7 @@ Two `ERROR:` lines are printed, and both are expected. They come from tests that
 | `CustomerDatabaseTest` | Save then load gives back the same customers; damaged files and failed saves throw an error. |
 | `NewBankTest` | Register (including every `FAIL` reason and passwords with spaces), login, unique IDs across restarts, a damaged file is never overwritten, and a failed save doesn't report `SUCCESS`. |
 
-`NewBank` has a package-private constructor, `NewBank(String customersFile)`, so the tests can create a bank that uses a temporary file. The server itself always uses `customers_database.txt`.
+`NewBank` has package-private constructors so tests can use a temporary file and a fixed `Clock`. The server itself uses `customers_database.txt` and the system clock.
 
 ### Using it
 
@@ -116,16 +116,15 @@ Enter Password
 Checking Details...
 Log In Successful. What do you want to do?
 > SHOWMYACCOUNTS
-Main: 1000.0
-> NEWACCOUNT Savings
-SUCCESS
+Savings: 1000.0
 > NEWACCOUNT Cheque
 SUCCESS
+> NEWACCOUNT Investment
+SUCCESS
 > SHOWMYACCOUNTS
-Savings: 0.0
-Cheque: 0.0
+Savings: 1000.0, Cheque: 0.0, Investment: 0.0
 > SHOWACTIVITY Savings
-Savings | 0.0 | 2026-11-17 | Opening
+1000.0 | 2026-11-17 | Opening
 ```
 
 `nc localhost 14002` works just as well as the example client.
@@ -208,9 +207,9 @@ Other details:
   Optional transactions after `#` use `date~amount~beneficiary`, separated by `|`.
 
 ```text
-1,Bhagy,,,Main:1000.0
-2,Christina,,,Savings:1500.0
-3,John,,,Checking:250.0
+1,Bhagy,,,Savings:1000.0#2026-11-17~1000.0~Opening
+2,Christina,,,Savings:1500.0#2026-11-17~1500.0~Opening
+3,John,,,Cheque:250.0#2026-11-17~250.0~Opening
 4,asmith,Alice Smith,secret,
 ```
 
@@ -230,15 +229,15 @@ The code is in the `CustomerDatabase` class (`save()` and `load()`). It only use
 
 ## Protocol
 
-Everything is plain text over TCP, one message per line. After the username and password lines, each command you send gets exactly one line back. Commands must match exactly, including case, so `showmyaccounts` gets `FAIL`.
+Everything is plain text over TCP, one message per line. After the username and password lines, each command you send gets exactly one line back. Account lists are comma-separated and activity records are separated by semicolons, so multi-item replies still fit on one line. Commands must match exactly, including case, so `showmyaccounts` gets `FAIL`.
 
 | Command | Example | Reply | Implemented |
 |---|---|---|---|
 | `REGISTER` | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes |
 | `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
-| `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | Accounts and balances, e.g. `Main: 1000.0` | Yes |
+| `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | One line of accounts and balances, e.g. `Savings: 1000.0, Cheque: 250.0` | Yes |
 | `NEWACCOUNT <Type>` | `NEWACCOUNT Savings` | `SUCCESS`, or `FAIL: <reason>`. Opening balance is always 0. Types: Savings, Cheque, Investment. | Yes |
-| `SHOWACTIVITY <AccountType>` | `SHOWACTIVITY Savings` | Transaction lines `type | amount | date | beneficiary`, or `No transactions` / `FAIL: <reason>` | Yes |
+| `SHOWACTIVITY <AccountType>` | `SHOWACTIVITY Savings` | One line of transactions, e.g. `100.0 \| 2026-11-17 \| Bhagy; -20.0 \| 2026-11-18 \| Shop`, or `No transactions` / `FAIL: <reason>` | Yes |
 | `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 | `PAY <Person/Company> <Amount>` | `PAY John 100` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 
@@ -398,8 +397,8 @@ sequenceDiagram
             U->>C: SHOWMYACCOUNTS
             C->>H: "SHOWMYACCOUNTS"
             H->>B: processRequest(id, request)
-            B-->>H: "Main: 1000.0"
-            H-->>C: "Main: 1000.0"
+            B-->>H: "Savings: 1000.0"
+            H-->>C: "Savings: 1000.0"
         end
         U->>C: LOGOUT
         C->>H: "LOGOUT"

@@ -2,11 +2,13 @@ package newbank.server;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 
 import org.junit.jupiter.api.Test;
@@ -24,15 +26,15 @@ class AccountActivityTest {
 	void activityIsIsolatedByAccountAndCustomerAndSurvivesRestart() throws IOException {
 		Customer alice = new Customer(1, "Alice", "pw");
 		Account savings = new Account("Savings", 12.34);
-		savings.addTransaction(new Transaction("Savings", 12.34,
+		savings.addTransaction(new Transaction(12.34,
 				LocalDate.of(2026, 1, 2), "John"));
-		savings.addTransaction(new Transaction("Savings", -1.0,
+		savings.addTransaction(new Transaction(-1.0,
 				LocalDate.of(2026, 1, 3), "Mary"));
 		alice.addAccount(savings);
 		alice.addAccount(new Account("Cheque", 0));
 		Customer bob = new Customer(2, "Bob", "pw");
 		Account hidden = new Account("Investment", 99);
-		hidden.addTransaction(new Transaction("Investment", 99,
+		hidden.addTransaction(new Transaction(99,
 				LocalDate.of(2026, 1, 1), "PRIVATE"));
 		bob.addAccount(hidden);
 		HashMap<String, Customer> customers = new HashMap<>();
@@ -40,8 +42,7 @@ class AccountActivityTest {
 		customers.put("bob", bob);
 		new CustomerDatabase(file()).save(customers);
 
-		String expected = "Savings | 12.34 | 2026-01-02 | John\n"
-				+ "Savings | -1.0 | 2026-01-03 | Mary";
+		String expected = "12.34 | 2026-01-02 | John; -1.0 | 2026-01-03 | Mary";
 		for(int restart = 0; restart < 2; restart++) {
 			NewBank bank = new NewBank(file());
 			CustomerID id = bank.checkLogInDetails("alice", "pw");
@@ -50,19 +51,20 @@ class AccountActivityTest {
 			assertEquals("No transactions", bank.processRequest(id, "SHOWACTIVITY Cheque"));
 			assertTrue(bank.processRequest(id, "SHOWACTIVITY Investment").startsWith("FAIL"));
 			assertTrue(bank.processRequest(id, "SHOWACTIVITY").startsWith("FAIL"));
-			assertEquals("FAIL", bank.processRequest(new CustomerID("unknown"), "SHOWACTIVITY Savings"));
+			assertEquals("FAIL: Unknown command", bank.processRequest(new CustomerID("unknown"), "SHOWACTIVITY Savings"));
 		}
 	}
 
 	@Test
 	void openingRecordAndZeroBalanceSurviveRestart() {
-		NewBank bank = new NewBank(file());
+		Clock fixedClock = Clock.fixed(Instant.parse("2026-01-02T12:00:00Z"), ZoneOffset.UTC);
+		NewBank bank = new NewBank(file(), fixedClock);
 		assertEquals("SUCCESS", bank.registerCustomer("Alice", "alice", "pw"));
 		CustomerID id = bank.checkLogInDetails("alice", "pw");
 		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Savings"));
 		String activity = bank.processRequest(id, "SHOWACTIVITY Savings");
-		assertEquals("Savings | 0.0 | " + LocalDate.now() + " | Opening", activity);
-		NewBank restarted = new NewBank(file());
+		assertEquals("0.0 | 2026-01-02 | Opening", activity);
+		NewBank restarted = new NewBank(file(), fixedClock);
 		assertEquals("Savings: 0.0", restarted.processRequest(id, "SHOWMYACCOUNTS"));
 		assertEquals(activity, restarted.processRequest(id, "SHOWACTIVITY Savings"));
 		assertTrue(restarted.processRequest(id, "NEWACCOUNT savings").startsWith("FAIL"));
@@ -74,12 +76,14 @@ class AccountActivityTest {
 		assertEquals("SUCCESS", bank.registerCustomer("Alice", "alice", "pw"));
 		CustomerID id = bank.checkLogInDetails("alice", "pw");
 		String before = Files.readString(Path.of(file()));
-		File directory = tempDir.toFile();
-		assertTrue(directory.setWritable(false));
+		Path path = Path.of(file());
 		try {
+			Files.delete(path);
+			Files.createDirectory(path); // deterministic save failure on all operating systems
 			assertTrue(bank.processRequest(id, "NEWACCOUNT Savings").startsWith("FAIL"));
 		} finally {
-			directory.setWritable(true);
+			Files.deleteIfExists(path);
+			Files.writeString(path, before);
 		}
 		assertEquals("", bank.processRequest(id, "SHOWMYACCOUNTS"));
 		assertTrue(bank.processRequest(id, "SHOWACTIVITY Savings").startsWith("FAIL"));
