@@ -45,9 +45,7 @@
         <version>2.43.0</version>
         <configuration>
           <java>
-              <eclipse>
-                <version>4.32.0</version>
-              </eclipse>
+              <eclipse />
           </java>
         </configuration>
         <executions>
