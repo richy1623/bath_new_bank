@@ -11,10 +11,10 @@ import java.util.HashMap;
 /**
  * Saves and loads customers to and from a plain text file.
  *
- * File format: one customer per line id,username,full
- * name,password,AccountName:balance;AccountName:balance e.g.
- * 1,Bhagy,,,Main:1000.0 (test customers have no full name or password)
- * 4,asmith,Alice Smith,secret, (registered customer with no accounts yet)
+ * File format: one customer per line <br>
+ * id,username,full,name,password,AccountName:balance;AccountName:balance <br>
+ * 1,Bhagy,,,Main:1000.0 (test customers have no full name or password) <br>
+ * 4,asmith,Alice Smith,secret, (registered customer with no accounts yet) <br>
  *
  * Both methods throw IOException when something goes wrong, so the caller
  * (NewBank) can decide what to do instead of carrying on as if everything
@@ -41,8 +41,8 @@ public class CustomerDatabase {
 		try (PrintWriter file = new PrintWriter(new FileWriter(fileName))) {
 			for (String userName : customers.keySet()) {
 				Customer c = customers.get(userName);
-				String fullName = (c.getFullName() == null) ? "" : c.getFullName();
-				String password = (c.getPassword() == null) ? "" : c.getPassword();
+				String fullName = c.getFullName() == null ? "" : c.getFullName();
+				String password = c.getPassword() == null ? "" : c.getPassword();
 				String accounts = "";
 				for (Account a : c.getAccounts()) {
 					if (!accounts.isEmpty()) {

@@ -1,11 +1,12 @@
-name: Java CI/CD
+name: Java CI
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - '**.java'
-      - 'pom.xml'
+      - "**.java"
+      - "pom.xml"
+      - ".github/workflows/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}

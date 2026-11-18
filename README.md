@@ -42,16 +42,16 @@ bath_new_bank/
         └── CustomerTest.java
 ```
 
-| Class | What it does |
-|---|---|
-| `NewBankServer` | Opens `ServerSocket(14002)` and loops on `accept()`, starting a `NewBankClientHandler` for each connection. |
-| `NewBankClientHandler` | Runs the register and login prompts, then reads requests in a loop and writes back the replies. |
-| `NewBank` | Singleton holding all customers in a `HashMap<String, Customer>`. Handles registration, login and command dispatch; its public methods are `synchronized`. |
-| `CustomerDatabase` | Saves customers to and loads them from `customers_database.txt`. |
-| `Customer` | A unique number ID, a full name, a password and a list of `Account`s. Its only constructor takes all three, so there's no customer without an ID. |
-| `Account` | An account name and a `double` balance (the field is called `openingBalance`). |
-| `CustomerID` | Wraps the username. Handed out on login and passed with every request. |
-| `ExampleClient` | Console client. The main thread sends what you type; a second thread prints whatever the server sends back. |
+| Class                  | What it does                                                                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NewBankServer`        | Opens `ServerSocket(14002)` and loops on `accept()`, starting a `NewBankClientHandler` for each connection.                                                |
+| `NewBankClientHandler` | Runs the register and login prompts, then reads requests in a loop and writes back the replies.                                                            |
+| `NewBank`              | Singleton holding all customers in a `HashMap<String, Customer>`. Handles registration, login and command dispatch; its public methods are `synchronized`. |
+| `CustomerDatabase`     | Saves customers to and loads them from `customers_database.txt`.                                                                                           |
+| `Customer`             | A unique number ID, a full name, a password and a list of `Account`s. Its only constructor takes all three, so there's no customer without an ID.          |
+| `Account`              | An account name and a `double` balance (the field is called `openingBalance`).                                                                             |
+| `CustomerID`           | Wraps the username. Handed out on login and passed with every request.                                                                                     |
+| `ExampleClient`        | Console client. The main thread sends what you type; a second thread prints whatever the server sends back.                                                |
 
 ### Test data
 
@@ -78,7 +78,7 @@ The following tools must be installed:
 mvn clean verify
 ```
 
-## How to the code formatter
+## How to run the code formatter
 
 ```bash
 mvn spotless:apply
@@ -106,11 +106,11 @@ java -jar target/newbank-client.jar
 
 ## Test Structure
 
-| Test class | What it checks |
-|---|---|
-| `CustomerTest` | Password checking, including blank passwords for test customers. |
-| `CustomerDatabaseTest` | Save then load gives back the same customers; damaged files and failed saves throw an error. |
-| `NewBankTest` | Register (including every `FAIL` reason and passwords with spaces), login, unique IDs across restarts, a damaged file is never overwritten, and a failed save doesn't report `SUCCESS`. |
+| Test class             | What it checks                                                                                                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CustomerTest`         | Password checking, including blank passwords for test customers.                                                                                                                        |
+| `CustomerDatabaseTest` | Save then load gives back the same customers; damaged files and failed saves throw an error.                                                                                            |
+| `NewBankTest`          | Register (including every `FAIL` reason and passwords with spaces), login, unique IDs across restarts, a damaged file is never overwritten, and a failed save doesn't report `SUCCESS`. |
 
 `NewBank` has a package-private constructor, `NewBank(String customersFile)`, so the tests can create a bank that uses a temporary file. The server itself always uses `customers_database.txt`.
 
@@ -234,14 +234,14 @@ The code is in the `CustomerDatabase` class (`save()` and `load()`). It only use
 
 Everything is plain text over TCP, one message per line. After the username and password lines, each command you send gets exactly one line back. Commands must match exactly, including case, so `showmyaccounts` gets `FAIL`.
 
-| Command | Example | Reply | Implemented |
-|---|---|---|---|
-| `REGISTER` | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes |
-| `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
-| `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | Accounts and balances, e.g. `Main: 1000.0` | Yes |
-| `NEWACCOUNT <Name>` | `NEWACCOUNT Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
-| `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
-| `PAY <Person/Company> <Amount>` | `PAY John 100` | `SUCCESS` or `FAIL` | No, always `FAIL` |
+| Command                         | Example                                                              | Reply                                                                               | Implemented       |
+| ------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------- |
+| `REGISTER`                      | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes               |
+| `LOGOUT`                        | `LOGOUT`                                                             | `Log Out Successful. Goodbye <Username>.` then `Enter Username`                     | Yes               |
+| `SHOWMYACCOUNTS`                | `SHOWMYACCOUNTS`                                                     | Accounts and balances, e.g. `Main: 1000.0`                                          | Yes               |
+| `NEWACCOUNT <Name>`             | `NEWACCOUNT Savings`                                                 | `SUCCESS` or `FAIL`                                                                 | No, always `FAIL` |
+| `MOVE <Amount> <From> <To>`     | `MOVE 100 Main Savings`                                              | `SUCCESS` or `FAIL`                                                                 | No, always `FAIL` |
+| `PAY <Person/Company> <Amount>` | `PAY John 100`                                                       | `SUCCESS` or `FAIL`                                                                 | No, always `FAIL` |
 
 ## Architecture
 
