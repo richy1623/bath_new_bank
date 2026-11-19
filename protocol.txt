@@ -12,7 +12,7 @@ Returns SUCCESS, or FAIL: <reason>, one of:
   FAIL: Full name cannot be empty
   FAIL: Username cannot be empty or contain spaces
   FAIL: Password cannot be empty
-  FAIL: Full name, username and password cannot contain commas
+  FAIL: Full name, username and password cannot contain file separators (, ; # | ~ :)
   FAIL: Username <username> is already taken
   FAIL: Your details could not be saved, please try again later
   FAIL: Customer data could not be loaded, so new customers cannot be saved right now
@@ -43,17 +43,37 @@ The server then goes back to the login prompt, so another customer can log in
 Once logged in, a customer enters the commands below and sees the messages returned
 
 SHOWMYACCOUNTS
-Returns a list of all the customers accounts along with their current balance 
-e.g. Main: 1000.0 
+Returns all of the customer's accounts and current balances on one line, separated by commas.
+e.g. Savings: 1000.0, Cheque: 250.0
 
-NEWACCOUNT <Name>
+NEWACCOUNT <Type>
 e.g. NEWACCOUNT Savings
-Returns SUCCESS or FAIL
+Creates a new account for the logged-in customer.
+Opening balance is always 0.
+Valid types only: Savings, Cheque, Investment.
+Each customer may have at most one account of each type.
+Returns SUCCESS, or FAIL: <reason>, one of:
+  FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings
+  FAIL: Account type must be Savings, Cheque or Investment
+  FAIL: You already have a <Type> account
+  FAIL: Customer data could not be loaded, so changes cannot be saved right now
+  FAIL: Your details could not be saved, please try again later
+An Opening transaction is recorded so SHOWACTIVITY has something to show.
+
+SHOWACTIVITY <AccountType>
+e.g. SHOWACTIVITY Savings
+Returns the account's transactions on one line, separated by semicolons:
+  <amount> | <date> | <beneficiary>; <amount> | <date> | <beneficiary>
+e.g. 100.0 | 2026-11-17 | Bhagy; -20.0 | 2026-11-18 | Shop
+If the account has no transactions yet: No transactions
+Returns FAIL: <reason> when the command or account is wrong, one of:
+  FAIL: Type SHOWACTIVITY <AccountType>, for example SHOWACTIVITY Savings
+  FAIL: Account <AccountType> not found
 
 MOVE <Amount> <From> <To>
 e.g. MOVE 100 Main Savings 
 Returns SUCCESS or FAIL
 
-PAY <Person/Company> <Ammount>
+PAY <Person/Company> <Amount>
 e.g. PAY John 100
 Returns SUCCESS or FAIL

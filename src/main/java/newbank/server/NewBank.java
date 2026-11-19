@@ -1,6 +1,8 @@
 package newbank.server;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.HashMap;
 
 public class NewBank {
@@ -19,10 +21,19 @@ public class NewBank {
 	// the ID the next registered customer will get (one more than the highest ID so
 	// far)
 	private int nextId = 1;
+	private final Clock clock;
+
+	// only these account types may be created with NEWACCOUNT
+	private static final String[] VALID_ACCOUNT_TYPES = {"Savings", "Cheque", "Investment"};
 
 	// package-private (not private) so the tests can create a bank that uses a
 	// temporary file
 	NewBank(String customersFile) {
+		this(customersFile, Clock.systemDefaultZone());
+	}
+
+	NewBank(String customersFile, Clock clock) {
+		this.clock = clock;
 		customers = new HashMap<>();
 		database = new CustomerDatabase(customersFile);
 		// on start: if the file exists, load it and move on;
@@ -55,15 +66,21 @@ public class NewBank {
 	private void addTestData() {
 		// test customers get IDs 1-3 and have no full name or password
 		Customer bhagy = new Customer(nextId++, "", null);
-		bhagy.addAccount(new Account("Main", 1000.0));
+		Account bhagySavings = new Account("Savings", 1000.0);
+		bhagySavings.addTransaction(new Transaction(1000.0, LocalDate.now(clock), "Opening"));
+		bhagy.addAccount(bhagySavings);
 		customers.put("Bhagy", bhagy);
 
 		Customer christina = new Customer(nextId++, "", null);
-		christina.addAccount(new Account("Savings", 1500.0));
+		Account christinaSavings = new Account("Savings", 1500.0);
+		christinaSavings.addTransaction(new Transaction(1500.0, LocalDate.now(clock), "Opening"));
+		christina.addAccount(christinaSavings);
 		customers.put("Christina", christina);
 
 		Customer john = new Customer(nextId++, "", null);
-		john.addAccount(new Account("Checking", 250.0));
+		Account johnCheque = new Account("Cheque", 250.0);
+		johnCheque.addTransaction(new Transaction(250.0, LocalDate.now(clock), "Opening"));
+		john.addAccount(johnCheque);
 		customers.put("John", john);
 	}
 
@@ -102,10 +119,9 @@ public class NewBank {
 		if (password.isEmpty()) {
 			return "FAIL: Password cannot be empty";
 		}
-		// commas are not allowed because the customers file uses them to separate
-		// fields
-		if (fullName.contains(",") || userName.contains(",") || password.contains(",")) {
-			return "FAIL: Full name, username and password cannot contain commas";
+		// reject every delimiter used by the plain-text customer and transaction format
+		if (containsFileSeparator(fullName) || containsFileSeparator(userName) || containsFileSeparator(password)) {
+			return "FAIL: Full name, username and password cannot contain file separators (, ; # | ~ :)";
 		}
 		if (customers.containsKey(userName)) {
 			return "FAIL: Username " + userName + " is already taken";
@@ -113,34 +129,120 @@ public class NewBank {
 		if (!canSave) {
 			return "FAIL: Customer data could not be loaded, so new customers cannot be saved right now";
 		}
-		customers.put(userName, new Customer(nextId++, fullName, password));
-		try {
-			database.save(customers);
-		} catch (IOException e) {
+		Customer newCustomer = new Customer(nextId++, fullName, password);
+		customers.put(userName, newCustomer);
+		String saveError = saveCustomers();
+		if (saveError != null) {
 			// undo, so we never tell the customer they're registered when they'd be lost on
 			// restart
 			customers.remove(userName);
-			System.out.println("ERROR: could not save customers: " + e.getMessage());
-			return "FAIL: Your details could not be saved, please try again later";
+			return saveError;
 		}
 		return "SUCCESS";
 	}
 
 	// commands from the NewBank customer are processed in this method
 	public synchronized String processRequest(CustomerID customer, String request) {
-		if (customers.containsKey(customer.getKey())) {
-			switch (request) {
-				case "SHOWMYACCOUNTS" :
-					return showMyAccounts(customer);
-				default :
-					return "FAIL";
-			}
+		if (request == null || !customers.containsKey(customer.getKey())) {
+			return "FAIL: Unknown command";
 		}
-		return "FAIL";
+		String trimmed = request.trim();
+		if (trimmed.isEmpty()) {
+			return "FAIL: Unknown command";
+		}
+		String[] parts = trimmed.split("\\s+");
+		String command = parts[0];
+		switch (command) {
+			case "SHOWMYACCOUNTS" :
+				return showMyAccounts(customer);
+			case "NEWACCOUNT" :
+				return newAccount(customer, parts);
+			case "SHOWACTIVITY" :
+				return showActivity(customer, parts);
+			default :
+				return "FAIL: Unknown command";
+		}
 	}
 
 	private String showMyAccounts(CustomerID customer) {
 		return (customers.get(customer.getKey())).accountsToString();
+	}
+
+	// NEWACCOUNT <Type>: opening balance is always 0
+	private String newAccount(CustomerID customerID, String[] parts) {
+		if (parts.length != 2) {
+			return "FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings";
+		}
+		String canonicalType = canonicalAccountType(parts[1]);
+		if (canonicalType == null) {
+			return "FAIL: Account type must be Savings, Cheque or Investment";
+		}
+		Customer customer = customers.get(customerID.getKey());
+		if (customer.hasAccountType(canonicalType)) {
+			return "FAIL: You already have a " + canonicalType + " account";
+		}
+		if (!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		Account account = new Account(canonicalType, 0.0);
+		account.addTransaction(new Transaction(0.0, LocalDate.now(clock), "Opening"));
+		customer.addAccount(account);
+		String saveError = saveCustomers();
+		if (saveError != null) {
+			customer.getAccounts().remove(account);
+			return saveError;
+		}
+		return "SUCCESS";
+	}
+
+	// SHOWACTIVITY <AccountType>
+	private String showActivity(CustomerID customerID, String[] parts) {
+		if (parts.length != 2) {
+			return "FAIL: Type SHOWACTIVITY <AccountType>, for example SHOWACTIVITY Savings";
+		}
+		Customer customer = customers.get(customerID.getKey());
+		Account account = customer.getAccount(parts[1]);
+		if (account == null) {
+			return "FAIL: Account " + parts[1] + " not found";
+		}
+		if (account.getTransactions().isEmpty()) {
+			return "No transactions";
+		}
+		String result = "";
+		for (Transaction t : account.getTransactions()) {
+			if (!result.isEmpty()) {
+				result += "; ";
+			}
+			result += t.toString();
+		}
+		return result;
+	}
+
+	private String canonicalAccountType(String type) {
+		if (type == null) {
+			return null;
+		}
+		for (String valid : VALID_ACCOUNT_TYPES) {
+			if (valid.equalsIgnoreCase(type)) {
+				return valid;
+			}
+		}
+		return null;
+	}
+
+	private boolean containsFileSeparator(String value) {
+		return value.chars().anyMatch(c -> ",;#|~:".indexOf(c) >= 0);
+	}
+
+	// returns null on success, or a FAIL message on failure
+	private String saveCustomers() {
+		try {
+			database.save(customers);
+			return null;
+		} catch (IOException e) {
+			System.out.println("ERROR: could not save customers: " + e.getMessage());
+			return "FAIL: Your details could not be saved, please try again later";
+		}
 	}
 
 }
