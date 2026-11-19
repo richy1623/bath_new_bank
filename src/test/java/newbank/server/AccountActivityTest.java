@@ -26,16 +26,13 @@ class AccountActivityTest {
 	void activityIsIsolatedByAccountAndCustomerAndSurvivesRestart() throws IOException {
 		Customer alice = new Customer(1, "Alice", "pw");
 		Account savings = new Account("Savings", 12.34);
-		savings.addTransaction(new Transaction(12.34,
-				LocalDate.of(2026, 1, 2), "John"));
-		savings.addTransaction(new Transaction(-1.0,
-				LocalDate.of(2026, 1, 3), "Mary"));
+		savings.addTransaction(new Transaction(12.34, LocalDate.of(2026, 1, 2), "John"));
+		savings.addTransaction(new Transaction(-1.0, LocalDate.of(2026, 1, 3), "Mary"));
 		alice.addAccount(savings);
 		alice.addAccount(new Account("Cheque", 0));
 		Customer bob = new Customer(2, "Bob", "pw");
 		Account hidden = new Account("Investment", 99);
-		hidden.addTransaction(new Transaction(99,
-				LocalDate.of(2026, 1, 1), "PRIVATE"));
+		hidden.addTransaction(new Transaction(99, LocalDate.of(2026, 1, 1), "PRIVATE"));
 		bob.addAccount(hidden);
 		HashMap<String, Customer> customers = new HashMap<>();
 		customers.put("alice", alice);
@@ -43,7 +40,7 @@ class AccountActivityTest {
 		new CustomerDatabase(file()).save(customers);
 
 		String expected = "12.34 | 2026-01-02 | John; -1.0 | 2026-01-03 | Mary";
-		for(int restart = 0; restart < 2; restart++) {
+		for (int restart = 0; restart < 2; restart++) {
 			NewBank bank = new NewBank(file());
 			CustomerID id = bank.checkLogInDetails("alice", "pw");
 			assertNotNull(id);
@@ -51,7 +48,8 @@ class AccountActivityTest {
 			assertEquals("No transactions", bank.processRequest(id, "SHOWACTIVITY Cheque"));
 			assertTrue(bank.processRequest(id, "SHOWACTIVITY Investment").startsWith("FAIL"));
 			assertTrue(bank.processRequest(id, "SHOWACTIVITY").startsWith("FAIL"));
-			assertEquals("FAIL: Unknown command", bank.processRequest(new CustomerID("unknown"), "SHOWACTIVITY Savings"));
+			assertEquals("FAIL: Unknown command",
+					bank.processRequest(new CustomerID("unknown"), "SHOWACTIVITY Savings"));
 		}
 	}
 
