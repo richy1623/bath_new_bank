@@ -17,6 +17,13 @@ public class LoanPayment {
 		this.loanRequest = loanRequest;
 	}
 
+	public LoanPayment(Double amount, LocalDateTime date, Account sourceAccount, LoanRequest loanRequest) {
+		this.amount = amount;
+		this.date = date;
+		this.sourceAccount = sourceAccount;
+		this.loanRequest = loanRequest;
+	}
+
 	public Long getPaymentId() {
 		return paymentId;
 	}

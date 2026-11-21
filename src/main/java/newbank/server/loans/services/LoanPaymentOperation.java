@@ -11,7 +11,7 @@ public interface LoanPaymentOperation {
 	Boolean paymentValidation(Double amount, Account sourceAccount);
 	Boolean activeLoan(Long loanRequestId);
 	LoanRequest getLoanRequest(Long loanRequestId);
-	LoanRequest makePayment(Long loanRequestId, Double amount, Account sourceAccount);
+	LoanPayment makePayment(Long loanRequestId, Double amount, Account sourceAccount);
 	List<LoanPayment> getPaymentsHistory(Long loanRequestId);
 	List<LoanRequest> getActiveLoans(Customer customer);
 	Double getCurrentLoanDebt(Long loanRequestId);

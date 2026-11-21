@@ -45,19 +45,29 @@ public class LoanRequest {
 		return interestRate;
 	}
 
-	public Boolean getActive() {
+	public Boolean isActive() {
 		return active;
 	}
 
-	public Boolean getApproved() {
+	public Boolean isApproved() {
 		return approved;
 	}
 
-	public Boolean getPending() {
+	public Boolean isPending() {
 		return pending;
 	}
 
 	public List<LoanPayment> getLoanPayments() {
 		return loanPayments;
+	}
+
+	public void reduceDebt(Double amount) {
+		this.currentDebt -= amount;
+	}
+
+	public void close() {
+		if (this.currentDebt == 0.0) {
+			this.active = false;
+		}
 	}
 }
