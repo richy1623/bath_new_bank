@@ -76,4 +76,28 @@ Returns SUCCESS or FAIL
 
 PAY <Person/Company> <Amount>
 e.g. PAY John 100
-Returns SUCCESS or FAIL
+Returns SUCCESS or FAIL (not implemented)
+
+SHOWACCOUNTDETAILS
+Lists only the logged-in customer's accounts on one line:
+  <type> | <account number> | <status> | <balance>; ...
+e.g. Savings | 00000101 | ACTIVE | 1000.0
+Account numbers contain digits and must be copied including leading zeros.
+New accounts are ACTIVE. Old account files receive stable numbers and default
+to ACTIVE when loaded. Account numbers and statuses are saved with the balances.
+INACTIVE and CLOSED accounts cannot send or receive transfers.
+This command does not change the existing SHOWMYACCOUNTS output.
+
+TRANSFER <FromType> <ReceivingAccountNumber> <Amount>
+e.g. TRANSFER Savings 00000301 25.50
+Requires login. The source type identifies one of the customer's own accounts.
+The receiving account must belong to another customer and both accounts must be ACTIVE.
+Amounts must be positive, at most 999999999999.99, and contain only whole cents.
+Returns SUCCESS only after both updated balances and both activity records are saved.
+The sender's activity records a negative amount and the receiving account number;
+the receiver's activity records a positive amount and the sending account number.
+Use SHOWACTIVITY <Type> to see the records.
+If saving fails, both balances and both histories are restored.
+Possible failure reasons include invalid parameters or amount, missing source or
+receiving account, own-customer destination, inactive account, insufficient funds,
+and a file-save error. The reply is FAIL: <reason>.

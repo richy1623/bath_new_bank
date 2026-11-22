@@ -51,6 +51,37 @@ public class Customer {
 
 	public void addAccount(Account account) {
 		accounts.add(account);
+		assignMissingAccountNumbers();
+	}
+
+	// used when loading the file: every account is added first, so numbers that
+	// are already saved are never given to another account
+	void addLoadedAccount(Account account) {
+		accounts.add(account);
+	}
+
+	// accounts without a number get the next free one: customer ID * 100 + position
+	void assignMissingAccountNumbers() {
+		long next = 1;
+		for (Account a : accounts) {
+			if (a.getAccountNumber() != null) {
+				continue;
+			}
+			String candidate;
+			do {
+				candidate = String.format(java.util.Locale.ROOT, "%08d", id * 100L + next++);
+			} while (numberInUse(candidate));
+			a.setAccountNumber(candidate);
+		}
+	}
+
+	private boolean numberInUse(String number) {
+		for (Account a : accounts) {
+			if (number.equals(a.getAccountNumber())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public Account getAccount(String accountName) {
