@@ -40,7 +40,7 @@ public class LoanPaymentOperationTest {
 		aliceAccount = new Account(1001L, alice, 2000.00);
 		alice.addAccount(aliceAccount);
 
-		aliceApprovedLoan = new LoanRequest(101L, alice, 1000.00, 800.00, 0.05, true, true, false, new ArrayList<>());
+		aliceApprovedLoan = new LoanRequest(101L, alice, 1000.00, 800.00, 0.05);
 		aliceApprovedLoan.getLoanPayments()
 				.add(new LoanPayment(1L, 150.00, LocalDateTime.of(2026, 9, 1, 10, 0), aliceAccount, aliceApprovedLoan));
 		aliceApprovedLoan.getLoanPayments().add(

@@ -1,5 +1,6 @@
 package newbank.server.loans.models;
 import java.util.List;
+import java.util.ArrayList;
 
 public class LoanRequest {
 	private Long loanRequestId;
@@ -12,8 +13,23 @@ public class LoanRequest {
 	private Boolean pending;
 	private List<LoanPayment> loanPayments;
 
+	//New Loan Request
 	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt,
-			Double interestRate, Boolean active, Boolean approved, Boolean pending, List<LoanPayment> loanPayments) {
+			Double interestRate) {
+		this.loanRequestId = loanRequestId;
+		this.customer = customer;
+		this.requestedAmount = requestedAmount;
+		this.currentDebt = currentDebt;
+		this.interestRate = interestRate;
+		this.active = false;
+		this.approved = false;
+		this.pending = true;
+		this.loanPayments = new ArrayList<>();
+	}
+
+	//Existing Loan Request
+	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt, Double interestRate,
+	 		Boolean active, Boolean approved, Boolean pending, List<LoanPayment> loanPayments) {
 		this.loanRequestId = loanRequestId;
 		this.customer = customer;
 		this.requestedAmount = requestedAmount;
@@ -59,6 +75,12 @@ public class LoanRequest {
 
 	public List<LoanPayment> getLoanPayments() {
 		return loanPayments;
+	}
+
+	public void approve() {
+		this.approved = true;
+		this.pending = false;
+		this.active = true;
 	}
 
 	public void reduceDebt(Double amount) {

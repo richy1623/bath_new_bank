@@ -8,7 +8,7 @@ import newbank.server.loans.models.Account;
 import newbank.server.loans.models.LoanPayment;
 import newbank.server.loans.models.LoanRequest;
 
-public class LoanService implements LoanPaymentOperation {
+public class LoanService implements LoanPaymentOperation, CustomerLoanOperations {
 
 	private List<Customer> customers;
 
@@ -109,6 +109,54 @@ public class LoanService implements LoanPaymentOperation {
 		}
 		// 2. Return current debt
 		return loan.getCurrentDebt();
+	}
+
+	@Override
+	public LoanRequest newLoanRequest(Customer customer, Double amount, Double interestRate) {
+		//1. Validate customer, amount and interest rate
+		if (customer == null) {
+			throw new IllegalArgumentException("Invalid customer");
+		}
+		if (amount == null || amount <= 0) {
+			throw new IllegalArgumentException("Invalid loan amount");
+		}
+		if (interestRate == null || interestRate <= 0) {
+			throw new IllegalArgumentException("Invalid interest rate");
+		}
+		//2. Estimate last loan ID
+		Long loanId = estimateLastLoanId();
+		//3. Create new loan request with estimated ID
+		LoanRequest newLoan = new LoanRequest(loanId, customer, amount, amount, interestRate);
+		//4. Add new loan to customer's loan requests
+		customer.getLoanRequests().add(newLoan);
+		return newLoan;
+	}
+
+	@Override
+	public Boolean studyCredit(Long loanRequestId) {
+		//1. Find Loan
+		LoanRequest loan = this.getLoanRequest(loanRequestId);
+		//2. Validate if Loan exists and is pending
+		if (loan == null) {
+			throw new IllegalArgumentException("No loan was found with the given id");
+		}
+		if (!loan.isPending()) {
+			throw new IllegalArgumentException("Loan is not pending");
+		}
+		//3. Study credit and approve loan (for simplicity, we approve all pending loans)
+		loan.approve();
+		return true;
+	}
+
+	private Long estimateLastLoanId() {
+		Long lastId = 0l;
+		for (Customer customer: customers) {
+			List<LoanRequest> loanRequests = customer.getLoanRequests();
+			if (!loanRequests.isEmpty()) {
+				lastId += loanRequests.size();
+			}
+		}
+		return lastId + 1;
 	}
 
 }
