@@ -13,7 +13,7 @@ public class LoanRequest {
 	private Boolean pending;
 	private List<LoanPayment> loanPayments;
 
-	//New Loan Request
+	// New Loan Request
 	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt,
 			Double interestRate) {
 		this.loanRequestId = loanRequestId;
@@ -27,9 +27,9 @@ public class LoanRequest {
 		this.loanPayments = new ArrayList<>();
 	}
 
-	//Existing Loan Request
-	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt, Double interestRate,
-	 		Boolean active, Boolean approved, Boolean pending, List<LoanPayment> loanPayments) {
+	// Existing Loan Request
+	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt,
+			Double interestRate, Boolean active, Boolean approved, Boolean pending, List<LoanPayment> loanPayments) {
 		this.loanRequestId = loanRequestId;
 		this.customer = customer;
 		this.requestedAmount = requestedAmount;

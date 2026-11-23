@@ -174,9 +174,9 @@ public class LoanPaymentOperationTest {
 	public void makePaymentRecordsPaymentInHistory() {
 		pay(101L, 200.00, aliceAccount);
 
-        LoanRequest updated = operator.getLoanRequest(101L);
+		LoanRequest updated = operator.getLoanRequest(101L);
 
-		List<LoanPayment> history =updated.getLoanPayments();
+		List<LoanPayment> history = updated.getLoanPayments();
 		assertEquals(3, history.size());
 
 		LoanPayment latest = history.get(history.size() - 1);

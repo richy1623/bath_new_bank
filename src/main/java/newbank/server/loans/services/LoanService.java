@@ -54,7 +54,8 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 	public LoanPayment makePayment(Long loanRequestId, Double amount, Account sourceAccount) {
 		// 1. Get the loan request
 		LoanRequest loan = getLoanRequest(loanRequestId);
-		// 2. Validate the loam, payment amount, source account's balance and debt status
+		// 2. Validate the loam, payment amount, source account's balance and debt
+		// status
 		if (loan == null) {
 			throw new IllegalArgumentException("No loan was found with the given id");
 		} else if (!paymentValidation(amount, sourceAccount)) {
@@ -63,13 +64,14 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 			throw new IllegalArgumentException("Payment value exceeds the current debt");
 		}
 		// 3. Register payment
-		LoanPayment payment = new LoanPayment(estimateLastLoanPaymentId(), amount, java.time.LocalDateTime.now(), sourceAccount, loan);
+		LoanPayment payment = new LoanPayment(estimateLastLoanPaymentId(), amount, java.time.LocalDateTime.now(),
+				sourceAccount, loan);
 		// 4. Deduct the amount from the source account & loan's current debt
 		sourceAccount.makePayment(amount);
 		loan.reduceDebt(amount);
 		// 5. Record the payment in the loan's payment history
 		loan.getLoanPayments().add(payment);
-		//6. If debt is paid, close it!
+		// 6. If debt is paid, close it!
 		loan.close();
 		return payment;
 	}
@@ -90,7 +92,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 		if (customer == null) {
 			throw new IllegalArgumentException("Not a valid cutsomer!");
 		}
-		//2. Get Active loans
+		// 2. Get Active loans
 		List<LoanRequest> loans = new ArrayList<>();
 		for (LoanRequest loan : customer.getLoanRequests()) {
 			if (loan.isActive()) {
@@ -113,7 +115,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 
 	@Override
 	public LoanRequest newLoanRequest(Customer customer, Double amount, Double interestRate) {
-		//1. Validate customer, amount and interest rate
+		// 1. Validate customer, amount and interest rate
 		if (customer == null) {
 			throw new IllegalArgumentException("Invalid customer");
 		}
@@ -123,34 +125,35 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 		if (interestRate == null || interestRate <= 0) {
 			throw new IllegalArgumentException("Invalid interest rate");
 		}
-		//2. Estimate last loan ID
+		// 2. Estimate last loan ID
 		Long loanId = estimateLastLoanId();
-		//3. Create new loan request with estimated ID
+		// 3. Create new loan request with estimated ID
 		LoanRequest newLoan = new LoanRequest(loanId, customer, amount, amount, interestRate);
-		//4. Add new loan to customer's loan requests
+		// 4. Add new loan to customer's loan requests
 		customer.getLoanRequests().add(newLoan);
 		return newLoan;
 	}
 
 	@Override
 	public Boolean studyCredit(Long loanRequestId) {
-		//1. Find Loan
+		// 1. Find Loan
 		LoanRequest loan = this.getLoanRequest(loanRequestId);
-		//2. Validate if Loan exists and is pending
+		// 2. Validate if Loan exists and is pending
 		if (loan == null) {
 			throw new IllegalArgumentException("No loan was found with the given id");
 		}
 		if (!loan.isPending()) {
 			throw new IllegalArgumentException("Loan is not pending");
 		}
-		//3. Study credit and approve loan (for simplicity, we approve all pending loans)
+		// 3. Study credit and approve loan (for simplicity, we approve all pending
+		// loans)
 		loan.approve();
 		return true;
 	}
 
 	private Long estimateLastLoanId() {
 		Long lastId = 0l;
-		for (Customer customer: customers) {
+		for (Customer customer : customers) {
 			List<LoanRequest> loanRequests = customer.getLoanRequests();
 			if (!loanRequests.isEmpty()) {
 				lastId += loanRequests.size();
@@ -161,7 +164,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 
 	private Long estimateLastLoanPaymentId() {
 		Long lastId = 0l;
-		for (Customer customer: customers) {
+		for (Customer customer : customers) {
 			for (LoanRequest loan : customer.getLoanRequests()) {
 				List<LoanPayment> loanPayments = loan.getLoanPayments();
 				if (!loanPayments.isEmpty()) {
