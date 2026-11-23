@@ -85,9 +85,9 @@ class NewBankTest {
 		assertEquals("FAIL: Username cannot be empty or contain spaces",
 				bank.registerCustomer("Alice", "a smith", "secret"));
 		assertEquals("FAIL: Password cannot be empty", bank.registerCustomer("Alice", "asmith", ""));
-		assertEquals("FAIL: Full name, username and password cannot contain commas",
+		assertEquals("FAIL: Full name, username and password cannot contain file separators (, ; # | ~ :)",
 				bank.registerCustomer("Smith, Alice", "asmith", "secret"));
-		assertEquals("FAIL: Full name, username and password cannot contain commas",
+		assertEquals("FAIL: Full name, username and password cannot contain file separators (, ; # | ~ :)",
 				bank.registerCustomer("Alice", "asmith", "se,cret"));
 		// none of the failed attempts created the customer
 		assertNull(bank.checkLogInDetails("asmith", "secret"));
@@ -126,17 +126,46 @@ class NewBankTest {
 	}
 
 	@Test
-	void failedSaveDoesNotReportSuccess() {
-		File file = new File(customersFile);
-		assertTrue(file.setWritable(false)); // make the save fail
+	void failedSaveDoesNotReportSuccess() throws IOException {
+		Path file = Path.of(customersFile);
 		try {
+			Files.delete(file);
+			Files.createDirectory(file); // saving over a directory fails on every OS
 			assertEquals("FAIL: Your details could not be saved, please try again later",
 					bank.registerCustomer("Alice Smith", "asmith", "secret"));
 			// the customer was taken back out, so they can't log in to an account that
 			// would vanish
 			assertNull(bank.checkLogInDetails("asmith", "secret"));
 		} finally {
-			file.setWritable(true);
+			Files.deleteIfExists(file);
 		}
 	}
+
+	// ---- NEWACCOUNT ----
+
+	@Test
+	void customerCanCreateMultipleAccountTypesWithOpeningBalance() {
+		bank.registerCustomer("Alice Smith", "asmith", "secret");
+		CustomerID id = new CustomerID("asmith");
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Savings"));
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Cheque"));
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Investment"));
+		String accounts = bank.processRequest(id, "SHOWMYACCOUNTS");
+		assertTrue(accounts.contains("Savings: 0.0"));
+		assertTrue(accounts.contains("Cheque: 0.0"));
+		assertTrue(accounts.contains("Investment: 0.0"));
+	}
+
+	@Test
+	void newAccountRejectsInvalidOrDuplicateType() {
+		bank.registerCustomer("Alice Smith", "asmith", "secret");
+		CustomerID id = new CustomerID("asmith");
+		assertEquals("FAIL: Account type must be Savings, Cheque or Investment",
+				bank.processRequest(id, "NEWACCOUNT Main"));
+		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Savings"));
+		assertEquals("FAIL: You already have a Savings account", bank.processRequest(id, "NEWACCOUNT Savings"));
+		assertEquals("FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings",
+				bank.processRequest(id, "NEWACCOUNT"));
+	}
+
 }
