@@ -132,7 +132,7 @@ public class NewBank {
 			switch (request) {
 				case "SHOWMYACCOUNTS" :
 					return showMyAccounts(customer);
-				case "REQUESTLOAN" :
+				case "LOANOPERATIONS" :
 					return null;
 				default :
 					return "FAIL";
