@@ -40,7 +40,7 @@ public class LoanPaymentOperationTest {
 		aliceAccount = new Account(1001L, alice, 2000.00);
 		alice.addAccount(aliceAccount);
 
-		aliceApprovedLoan = new LoanRequest(101L, alice, 1000.00, 800.00, 0.05);
+		aliceApprovedLoan = new LoanRequest(101L, alice, 1000.00, 800.00, 0.05, true, true, false, new ArrayList<>());
 		aliceApprovedLoan.getLoanPayments()
 				.add(new LoanPayment(1L, 150.00, LocalDateTime.of(2026, 9, 1, 10, 0), aliceAccount, aliceApprovedLoan));
 		aliceApprovedLoan.getLoanPayments().add(
@@ -180,6 +180,7 @@ public class LoanPaymentOperationTest {
 		assertEquals(3, history.size());
 
 		LoanPayment latest = history.get(history.size() - 1);
+		assertEquals(6L, latest.getPaymentId(), "id of payment recorded in history");
 		assertEquals(200.00, latest.getAmount(), DELTA);
 		assertEquals(1001L, latest.getSourceAccount().getAccountId());
 		assertEquals(101L, latest.getLoanRequest().getLoanRequestId());
@@ -197,8 +198,12 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void consecutivePaymentsAccumulate() {
-		pay(201L, 1000.00, bobMainAccount);
-		LoanRequest updated = pay(201L, 250.00, bobSecondAccount).getLoanRequest();
+		LoanPayment first = pay(201L, 1000.00, bobMainAccount);
+		LoanPayment second = pay(201L, 250.00, bobSecondAccount);
+		LoanRequest updated = second.getLoanRequest();
+
+		assertEquals(6L, first.getPaymentId(), "id of first new payment");
+		assertEquals(7L, second.getPaymentId(), "id of second new payment");
 
 		assertEquals(2750.00, updated.getCurrentDebt(), DELTA, "debt on returned loan 201");
 		assertEquals(4000.00, bobMainAccount.getBalance(), DELTA);
@@ -251,10 +256,54 @@ public class LoanPaymentOperationTest {
 	}
 
 	@Test
+	public void makePaymentAssignsNextPaymentId() {
+		LoanPayment payment = pay(101L, 200.00, aliceAccount);
+
+		assertNotNull(payment.getPaymentId(), "payment id");
+		assertEquals(6L, payment.getPaymentId(), "fixture holds payments 1-5, so the next id is 6");
+	}
+
+	@Test
+	public void makePaymentIdsAreSequentialAcrossLoansAndCustomers() {
+		LoanPayment alicePayment = pay(101L, 100.00, aliceAccount);
+		LoanPayment bobPayment = pay(202L, 100.00, bobMainAccount);
+		LoanPayment bobOtherLoanPayment = pay(201L, 100.00, bobSecondAccount);
+
+		assertEquals(6L, alicePayment.getPaymentId());
+		assertEquals(7L, bobPayment.getPaymentId());
+		assertEquals(8L, bobOtherLoanPayment.getPaymentId());
+	}
+
+	@Test
+	public void makePaymentIdsAreUniqueAcrossAllLoans() {
+		pay(101L, 100.00, aliceAccount);
+		pay(201L, 100.00, bobMainAccount);
+		pay(202L, 100.00, bobMainAccount);
+
+		List<Long> allIds = new ArrayList<>();
+		for (Long loanId : List.of(101L, 102L, 103L, 201L, 202L)) {
+			allIds.addAll(paymentIds(history(loanId)));
+		}
+
+		assertEquals(8, allIds.size());
+		assertEquals(allIds.size(), allIds.stream().distinct().count(), "duplicate payment ids: " + allIds);
+		assertEquals(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L), allIds.stream().sorted().collect(Collectors.toList()));
+	}
+
+	@Test
+	public void rejectedPaymentDoesNotConsumeAnId() {
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(202L, 500.00, bobSecondAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(102L, 100.00, aliceAccount));
+
+		assertEquals(6L, pay(101L, 100.00, aliceAccount).getPaymentId());
+	}
+
+	@Test
 	public void paymentsHistoryForAliceApprovedLoanHasTwoPaymentsInOrder() {
 		List<LoanPayment> history = history(101L);
 
 		assertEquals(2, history.size());
+		assertEquals(List.of(1L, 2L), paymentIds(history));
 		assertEquals(150.00, history.get(0).getAmount(), DELTA);
 		assertEquals(100.00, history.get(1).getAmount(), DELTA);
 		assertTrue(history.stream().allMatch(p -> p.getSourceAccount().getAccountId() == 1001L));
@@ -268,6 +317,8 @@ public class LoanPaymentOperationTest {
 		assertEquals(2, first.size());
 		assertEquals(1, second.size());
 		assertEquals(3, first.size() + second.size());
+		assertEquals(List.of(3L, 4L), paymentIds(first));
+		assertEquals(List.of(5L), paymentIds(second));
 
 		assertEquals(2001L, first.get(0).getSourceAccount().getAccountId());
 		assertEquals(2002L, first.get(1).getSourceAccount().getAccountId());
@@ -310,6 +361,10 @@ public class LoanPaymentOperationTest {
 		List<LoanPayment> history = operator.getPaymentsHistory(loanRequestId);
 		assertNotNull(history, "getPaymentsHistory(" + loanRequestId + ") returned null");
 		return history;
+	}
+
+	private List<Long> paymentIds(List<LoanPayment> payments) {
+		return payments.stream().map(LoanPayment::getPaymentId).collect(Collectors.toList());
 	}
 
 	private List<Long> activeLoanIds(Customer customer) {

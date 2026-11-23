@@ -63,7 +63,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 			throw new IllegalArgumentException("Payment value exceeds the current debt");
 		}
 		// 3. Register payment
-		LoanPayment payment = new LoanPayment(amount, java.time.LocalDateTime.now(), sourceAccount, loan);
+		LoanPayment payment = new LoanPayment(estimateLastLoanPaymentId(), amount, java.time.LocalDateTime.now(), sourceAccount, loan);
 		// 4. Deduct the amount from the source account & loan's current debt
 		sourceAccount.makePayment(amount);
 		loan.reduceDebt(amount);
@@ -154,6 +154,19 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 			List<LoanRequest> loanRequests = customer.getLoanRequests();
 			if (!loanRequests.isEmpty()) {
 				lastId += loanRequests.size();
+			}
+		}
+		return lastId + 1;
+	}
+
+	private Long estimateLastLoanPaymentId() {
+		Long lastId = 0l;
+		for (Customer customer: customers) {
+			for (LoanRequest loan : customer.getLoanRequests()) {
+				List<LoanPayment> loanPayments = loan.getLoanPayments();
+				if (!loanPayments.isEmpty()) {
+					lastId += loanPayments.size();
+				}
 			}
 		}
 		return lastId + 1;
