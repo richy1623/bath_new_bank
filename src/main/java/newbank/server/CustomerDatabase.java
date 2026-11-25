@@ -2,10 +2,9 @@ package newbank.server;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.BufferedWriter;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -56,7 +55,7 @@ public class CustomerDatabase {
 		}
 		Path temp = Files.createTempFile(target.toAbsolutePath().getParent(), "customers", ".tmp");
 		try {
-			try (BufferedWriter file = Files.newBufferedWriter(temp, Charset.defaultCharset())) {
+			try (BufferedWriter file = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
 				for (String userName : customers.keySet()) {
 					Customer c = customers.get(userName);
 					String fullName = (c.getFullName() == null) ? "" : c.getFullName();
@@ -88,7 +87,7 @@ public class CustomerDatabase {
 	// never leaves the bank with half of its customers.
 	public HashMap<String, Customer> load() throws IOException {
 		HashMap<String, Customer> customers = new HashMap<>();
-		try (BufferedReader file = new BufferedReader(new FileReader(fileName))) {
+		try (BufferedReader file = Files.newBufferedReader(Path.of(fileName), StandardCharsets.UTF_8)) {
 			String line;
 			int lineNumber = 0;
 			while ((line = file.readLine()) != null) {
@@ -147,7 +146,9 @@ public class CustomerDatabase {
 		if (fields.length != 2 && fields.length != 4) {
 			throw new IllegalArgumentException("Invalid account fields");
 		}
-		Account a = new Account(fields[0], new BigDecimal(fields[1]));
+		// Older files may contain binary floating-point artifacts with more than two
+		// decimal places. Normalize those balances to cents when loading legacy data.
+		Account a = new Account(fields[0], new BigDecimal(fields[1]).setScale(2, java.math.RoundingMode.HALF_UP));
 		if (fields.length == 4) {
 			a.setAccountNumber(fields[2]);
 			a.setStatus(Account.Status.valueOf(fields[3]));

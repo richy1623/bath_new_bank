@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -67,7 +68,7 @@ class TransferTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"0", "-1", "NaN", "Infinity", "text", "0.001", "0.100000001", "0.099999999", "1e400",
-			"1e-400", "1000000000000"})
+			"1e-400", "1e-100000000", "1e1", "+5", "1.000", "1000000000000"})
 	void invalidAmountsLeaveAllDataUnchanged(String amount) throws Exception {
 		NewBank bank = bank();
 		String before = snapshot(bank);
@@ -79,13 +80,27 @@ class TransferTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"TRANSFER", "TRANSFER Savings 00000201", "TRANSFER Savings 00000201 1 extra",
-			"TRANSFER Investment 00000201 1", "TRANSFER Savings 99999999 1", "TRANSFER Savings 00000102 1",
-			"TRANSFER Savings 00000101 1", "TRANSFER Savings 00000201 100.31"})
+			"TRANSFER Investment 00000201 1", "TRANSFER Savings 99999999 1", "TRANSFER Savings 00000101 1",
+			"TRANSFER Savings 00000201 100.31"})
 	void invalidRequestsLeaveAllDataUnchanged(String command) throws Exception {
 		NewBank bank = bank();
 		String before = snapshot(bank);
 		assertTrue(bank.processRequest(alice, command).startsWith("FAIL"));
 		assertEquals(before, snapshot(bank));
+	}
+
+	@Test
+	void extremeExponentAmountIsRejectedQuickly() throws Exception {
+		NewBank bank = bank();
+		assertTimeoutPreemptively(Duration.ofSeconds(1), () ->
+				assertTrue(bank.processRequest(alice, "TRANSFER Savings 00000201 1e-100000000").startsWith("FAIL")));
+	}
+
+	@Test
+	void customerCanTransferBetweenOwnAccounts() throws Exception {
+		NewBank bank = bank();
+		assertEquals("SUCCESS", bank.processRequest(alice, "TRANSFER Savings 00000102 10.00"));
+		assertEquals("Savings: 90.3, Cheque: 10.0", bank.processRequest(alice, "SHOWMYACCOUNTS"));
 	}
 
 	@Test

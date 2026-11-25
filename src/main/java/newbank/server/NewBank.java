@@ -146,7 +146,7 @@ public class NewBank {
 	// commands from the NewBank customer are processed in this method
 	public synchronized String processRequest(CustomerID customer, String request) {
 		if (customer == null || request == null || !customers.containsKey(customer.getKey())) {
-			return "FAIL: Unknown command";
+			return "FAIL: No active customer session";
 		}
 		String trimmed = request.trim();
 		if (trimmed.isEmpty()) {
@@ -171,7 +171,8 @@ public class NewBank {
 	}
 
 	private String showMyAccounts(CustomerID customer) {
-		return (customers.get(customer.getKey())).accountsToString();
+		String accounts = customers.get(customer.getKey()).accountsToString();
+		return accounts.isEmpty() ? "No accounts" : accounts;
 	}
 
 	// NEWACCOUNT <Type>: opening balance is always 0
@@ -259,6 +260,9 @@ public class NewBank {
 		}
 		BigDecimal amount;
 		try {
+			if (!parts[3].matches("[0-9]{1,12}([.][0-9]{1,2})?")) {
+				return "FAIL: Amount must be a positive number with at most 2 decimal places";
+			}
 			BigDecimal parsed = new BigDecimal(parts[3]);
 			if (parsed.signum() <= 0 || parsed.compareTo(new BigDecimal("999999999999.99")) > 0) {
 				return "FAIL: Amount must be between 0.01 and 999999999999.99";
@@ -285,8 +289,8 @@ public class NewBank {
 		if (to == null) {
 			return "FAIL: Receiving account not found";
 		}
-		if (receiver == payer) {
-			return "FAIL: Receiving account must belong to another customer";
+		if (from == to) {
+			return "FAIL: Source and receiving accounts must be different";
 		}
 		if (from.getStatus() != Account.Status.ACTIVE || to.getStatus() != Account.Status.ACTIVE) {
 			return "FAIL: Both accounts must be Active";
@@ -295,7 +299,7 @@ public class NewBank {
 			return "FAIL: Not enough money";
 		}
 		if (!canSave) {
-			return "FAIL: Customer data could not be loaded";
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
 		}
 		BigDecimal fromBefore = from.balanceAmount();
 		BigDecimal toBefore = to.balanceAmount();

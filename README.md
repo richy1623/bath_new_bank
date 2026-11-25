@@ -154,7 +154,7 @@ Savings: 1000.0, Cheque: 0.0, Investment: 0.0
 
 ### Registering
 
-To create a new customer, type `REGISTER` on its own at the `Enter Username` prompt. The server then asks for each detail on its own line, so the full name and password can contain spaces. The new customer gets a unique number ID and no accounts yet, so `SHOWMYACCOUNTS` returns an empty line.
+To create a new customer, type `REGISTER` on its own at the `Enter Username` prompt. The server then asks for each detail on its own line, so the full name and password can contain spaces. The new customer gets a unique number ID and no accounts yet, so `SHOWMYACCOUNTS` returns `No accounts`.
 
 ```text
 Enter Username
@@ -230,9 +230,9 @@ Other details:
   Optional transactions after `#` use `date~amount~beneficiary`, separated by `|`.
 
 ```text
-1,Bhagy,,,Savings:1000.0#2026-11-17~1000.0~Opening
-2,Christina,,,Savings:1500.0#2026-11-17~1500.0~Opening
-3,John,,,Cheque:250.0#2026-11-17~250.0~Opening
+1,Bhagy,,,Savings:1000.00:00000101:ACTIVE#2026-11-17~1000.0~Opening
+2,Christina,,,Savings:1500.00:00000201:ACTIVE#2026-11-17~1500.0~Opening
+3,John,,,Cheque:250.00:00000301:ACTIVE#2026-11-17~250.0~Opening
 4,asmith,Alice Smith,secret,
 ```
 
@@ -241,6 +241,8 @@ Test customers have no full name or password, so those fields are empty. A newly
 **IDs:** each customer has a unique number ID. When the file is loaded, `NewBank` remembers the highest ID in it, and each new `REGISTER` gets the next number up. IDs are never reused, even after a restart. The `HashMap` is still keyed by username, because that's what customers log in with.
 
 To go back to just the test data, stop the server and delete `customers_database.txt`. The next run recreates it from `addTestData()`.
+
+**Back up `customers_database.txt` before switching to an older branch or version.** This version writes account numbers and statuses in the account records. Older versions cannot read that format, so switching back without restoring a backup can prevent the older server from loading customer data.
 
 The code is in the `CustomerDatabase` class (`save()` and `load()`). It only uses `java.io`, with no external libraries.
 
@@ -258,12 +260,12 @@ Everything is plain text over TCP, one message per line. After the username and 
 |---|---|---|---|
 | `REGISTER` | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes |
 | `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
-| `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | One line of accounts and balances, e.g. `Savings: 1000.0, Cheque: 250.0` | Yes |
+| `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | One line of accounts and balances, e.g. `Savings: 1000.0, Cheque: 250.0`, or `No accounts` | Yes |
 | `NEWACCOUNT <Type>` | `NEWACCOUNT Savings` | `SUCCESS`, or `FAIL: <reason>`. Opening balance is always 0. Types: Savings, Cheque, Investment. | Yes |
 | `SHOWACTIVITY <AccountType>` | `SHOWACTIVITY Savings` | One line of transactions, e.g. `100.0 \| 2026-11-17 \| Bhagy; -20.0 \| 2026-11-18 \| Shop`, or `No transactions` / `FAIL: <reason>` | Yes |
 | `SHOWACCOUNTDETAILS` | `SHOWACCOUNTDETAILS` | Account type, number, status and balance, separated by semicolons | Yes |
 | `TRANSFER <FromType> <ReceivingAccountNumber> <Amount>` | `TRANSFER Savings 00000301 25.50` | `SUCCESS` or `FAIL: <reason>` | Yes |
-| `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `SUCCESS` or `FAIL` | No, always `FAIL` |
+| `MOVE <Amount> <From> <To>` | `MOVE 100 Main Savings` | `FAIL: MOVE is not implemented` | No |
 | `PAY <Person/Company> <Amount>` | `PAY John 100` | `SUCCESS` or `FAIL` | No, always `FAIL` |
 
 ### Transfers between customers
@@ -274,15 +276,17 @@ The commands use the same authenticated TCP session and text file as the existin
 2. The sender runs `TRANSFER Savings <ReceivingAccountNumber> 25.50` to choose their Savings account and transfer to the exact receiving account.
 3. Both customers can run `SHOWACTIVITY <Type>` to see the signed amount, date and counterparty account number.
 
-Only ACTIVE accounts can send or receive. Missing accounts, own-customer destinations,
-insufficient funds, invalid amounts and saving errors return `FAIL: <reason>`.
-Amounts must be positive whole cents and no greater than 999999999999.99.
+Only ACTIVE accounts can send or receive. The source and receiving accounts must differ.
+Missing accounts, insufficient funds, invalid amounts and saving errors return
+`FAIL: <reason>`.
+Amounts must be positive plain decimal values with one or two decimal places and no greater than 999999999999.99. Scientific notation and explicit plus signs are rejected.
 The bank serializes requests and saves both balances and histories in one file replacement;
 if saving fails, both in-memory balances and histories are restored. Atomic file replacement
 must be supported by the file system; otherwise saving fails safely.
 
-Old account file entries remain readable. They receive stable account numbers based on
-customer IDs and account positions, with ACTIVE as the default status. New-format files
+Old account file entries remain readable. Balances with more than two decimal places are
+rounded to cents when loaded. They receive stable account numbers based on customer IDs
+and account positions, with ACTIVE as the default status. New-format files
 persist numbers and statuses. SHOWMYACCOUNTS keeps its existing output format.
 Account lifecycle management is represented by the ACTIVE, INACTIVE and CLOSED statuses;
 this feature does not add a public command for changing those statuses.
@@ -386,7 +390,7 @@ classDiagram
     }
     class Account {
         -String accountName
-        -double openingBalance
+        -BigDecimal balance
         +toString() String
     }
     class CustomerID {
