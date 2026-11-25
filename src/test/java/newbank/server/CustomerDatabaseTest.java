@@ -77,8 +77,7 @@ class CustomerDatabaseTest {
 
 	@Test
 	void legacyBalanceWithFloatingPointPrecisionLoadsRoundedToCents() throws IOException {
-		Files.writeString(tempDir.resolve("customers.txt"),
-				"1,Alice,Alice,secret,Savings:0.30000000000000004\n");
+		Files.writeString(tempDir.resolve("customers.txt"), "1,Alice,Alice,secret,Savings:0.30000000000000004\n");
 		Customer loaded = new CustomerDatabase(file("customers.txt")).load().get("Alice");
 		assertEquals(0.3, loaded.getAccount("Savings").getBalance());
 	}
