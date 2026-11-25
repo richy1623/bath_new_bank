@@ -92,8 +92,8 @@ class TransferTest {
 	@Test
 	void extremeExponentAmountIsRejectedQuickly() throws Exception {
 		NewBank bank = bank();
-		assertTimeoutPreemptively(Duration.ofSeconds(1),
-				() -> assertTrue(bank.processRequest(alice, "TRANSFER Savings 00000201 1e-100000000").startsWith("FAIL")));
+		assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertTrue(
+				bank.processRequest(alice, "TRANSFER Savings 00000201 1e-100000000").startsWith("FAIL")));
 	}
 
 	@Test
