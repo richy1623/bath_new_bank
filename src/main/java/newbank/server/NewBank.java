@@ -154,6 +154,14 @@ public class NewBank {
 		}
 		String[] parts = trimmed.split("\\s+");
 		String command = parts[0];
+		// Keep transfer-related commands outside the core command switch so independent
+		// features can add switch cases without colliding in NewBank.java.
+		if ("SHOWACCOUNTDETAILS".equals(command)) {
+			return showAccountDetails(customer, parts);
+		}
+		if ("TRANSFER".equals(command)) {
+			return transfer(customer, parts);
+		}
 		switch (command) {
 			case "SHOWMYACCOUNTS" :
 				return showMyAccounts(customer);
@@ -161,10 +169,6 @@ public class NewBank {
 				return newAccount(customer, parts);
 			case "SHOWACTIVITY" :
 				return showActivity(customer, parts);
-			case "SHOWACCOUNTDETAILS" :
-				return showAccountDetails(customer, parts);
-			case "TRANSFER" :
-				return transfer(customer, parts);
 			default :
 				return "FAIL: Unknown command";
 		}
