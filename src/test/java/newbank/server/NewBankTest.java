@@ -67,7 +67,7 @@ class NewBankTest {
 	@Test
 	void newCustomerHasNoAccounts() {
 		bank.registerCustomer("Alice Smith", "asmith", "secret");
-		assertEquals("", bank.processRequest(new CustomerID("asmith"), "SHOWMYACCOUNTS"));
+		assertEquals("No accounts", bank.processRequest(new CustomerID("asmith"), "SHOWMYACCOUNTS"));
 	}
 
 	@Test
