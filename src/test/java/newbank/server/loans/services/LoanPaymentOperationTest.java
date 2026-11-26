@@ -2,6 +2,7 @@ package newbank.server.loans.services;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,8 +17,6 @@ import newbank.server.loans.models.LoanPayment;
 import newbank.server.loans.models.LoanRequest;
 
 public class LoanPaymentOperationTest {
-
-	private static final double DELTA = 0.001;
 
 	private LoanPaymentOperation operator;
 
@@ -37,18 +36,19 @@ public class LoanPaymentOperationTest {
 	public void setUp() {
 		// --- Initializing testing objects ---
 		alice = new Customer(1L, "Alice Smith", "NI-AS-001", new ArrayList<>(), new ArrayList<>());
-		aliceAccount = new Account(1001L, alice, 2000.00);
+		aliceAccount = new Account(1001L, alice, bd("2000.00"));
 		alice.addAccount(aliceAccount);
 
-		aliceApprovedLoan = new LoanRequest(101L, alice, 1000.00, 800.00, 0.05, true, true, false, new ArrayList<>());
-		aliceApprovedLoan.getLoanPayments()
-				.add(new LoanPayment(1L, 150.00, LocalDateTime.of(2026, 9, 1, 10, 0), aliceAccount, aliceApprovedLoan));
-		aliceApprovedLoan.getLoanPayments().add(
-				new LoanPayment(2L, 100.00, LocalDateTime.of(2026, 10, 1, 10, 0), aliceAccount, aliceApprovedLoan));
-
-		aliceRejectedLoanOne = new LoanRequest(102L, alice, 3000.00, 0.00, 0.05, false, false, false,
+		aliceApprovedLoan = new LoanRequest(101L, alice, bd("1000.00"), bd("800.00"), bd("0.05"), true, true, false,
 				new ArrayList<>());
-		aliceRejectedLoanTwo = new LoanRequest(103L, alice, 10000.00, 0.00, 0.08, false, false, false,
+		aliceApprovedLoan.getLoanPayments().add(new LoanPayment(1L, bd("150.00"), LocalDateTime.of(2026, 9, 1, 10, 0),
+				aliceAccount, aliceApprovedLoan));
+		aliceApprovedLoan.getLoanPayments().add(new LoanPayment(2L, bd("100.00"), LocalDateTime.of(2026, 10, 1, 10, 0),
+				aliceAccount, aliceApprovedLoan));
+
+		aliceRejectedLoanOne = new LoanRequest(102L, alice, bd("3000.00"), bd("0.00"), bd("0.05"), false, false, false,
+				new ArrayList<>());
+		aliceRejectedLoanTwo = new LoanRequest(103L, alice, bd("10000.00"), bd("0.00"), bd("0.08"), false, false, false,
 				new ArrayList<>());
 
 		alice.addLoanRequest(aliceApprovedLoan);
@@ -56,20 +56,22 @@ public class LoanPaymentOperationTest {
 		alice.addLoanRequest(aliceRejectedLoanTwo);
 
 		bob = new Customer(2L, "Bob Jones", "NI-BJ-002", new ArrayList<>(), new ArrayList<>());
-		bobMainAccount = new Account(2001L, bob, 5000.00);
-		bobSecondAccount = new Account(2002L, bob, 300.00);
+		bobMainAccount = new Account(2001L, bob, bd("5000.00"));
+		bobSecondAccount = new Account(2002L, bob, bd("300.00"));
 		bob.addAccount(bobMainAccount);
 		bob.addAccount(bobSecondAccount);
 
-		bobFirstLoan = new LoanRequest(201L, bob, 5000.00, 4000.00, 0.04, true, true, false, new ArrayList<>());
-		bobFirstLoan.getLoanPayments()
-				.add(new LoanPayment(3L, 1000.00, LocalDateTime.of(2026, 8, 15, 9, 30), bobMainAccount, bobFirstLoan));
-		bobFirstLoan.getLoanPayments()
-				.add(new LoanPayment(4L, 200.00, LocalDateTime.of(2026, 9, 15, 9, 30), bobSecondAccount, bobFirstLoan));
+		bobFirstLoan = new LoanRequest(201L, bob, bd("5000.00"), bd("4000.00"), bd("0.04"), true, true, false,
+				new ArrayList<>());
+		bobFirstLoan.getLoanPayments().add(
+				new LoanPayment(3L, bd("1000.00"), LocalDateTime.of(2026, 8, 15, 9, 30), bobMainAccount, bobFirstLoan));
+		bobFirstLoan.getLoanPayments().add(new LoanPayment(4L, bd("200.00"), LocalDateTime.of(2026, 9, 15, 9, 30),
+				bobSecondAccount, bobFirstLoan));
 
-		bobSecondLoan = new LoanRequest(202L, bob, 2000.00, 2000.00, 0.10, true, true, false, new ArrayList<>());
-		bobSecondLoan.getLoanPayments()
-				.add(new LoanPayment(5L, 200.00, LocalDateTime.of(2026, 10, 20, 14, 0), bobMainAccount, bobSecondLoan));
+		bobSecondLoan = new LoanRequest(202L, bob, bd("2000.00"), bd("2000.00"), bd("0.10"), true, true, false,
+				new ArrayList<>());
+		bobSecondLoan.getLoanPayments().add(new LoanPayment(5L, bd("200.00"), LocalDateTime.of(2026, 10, 20, 14, 0),
+				bobMainAccount, bobSecondLoan));
 
 		bob.addLoanRequest(bobFirstLoan);
 		bob.addLoanRequest(bobSecondLoan);
@@ -79,37 +81,81 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void paymentValidationAcceptsAmountWithinBalance() {
-		assertTrue(operator.paymentValidation(500.00, aliceAccount), "500.00 from account 1001 (balance 2000.00)");
-		assertTrue(operator.paymentValidation(250.00, bobSecondAccount), "250.00 from account 2002 (balance 300.00)");
+		assertTrue(operator.paymentValidation(bd("500.00"), aliceAccount),
+				"500.00 from account 1001 (balance 2000.00)");
+		assertTrue(operator.paymentValidation(bd("250.00"), bobSecondAccount),
+				"250.00 from account 2002 (balance 300.00)");
 	}
 
 	@Test
 	public void paymentValidationAcceptsAmountEqualToBalance() {
-		assertTrue(operator.paymentValidation(300.00, bobSecondAccount), "300.00 from account 2002 (balance 300.00)");
+		assertTrue(operator.paymentValidation(bd("300.00"), bobSecondAccount),
+				"300.00 from account 2002 (balance 300.00)");
 	}
 
 	@Test
 	public void paymentValidationRejectsAmountExceedingBalance() {
-		assertFalse(operator.paymentValidation(300.01, bobSecondAccount), "300.01 from account 2002 (balance 300.00)");
-		assertFalse(operator.paymentValidation(5000.00, aliceAccount), "5000.00 from account 1001 (balance 2000.00)");
+		assertFalse(operator.paymentValidation(bd("300.01"), bobSecondAccount),
+				"300.01 from account 2002 (balance 300.00)");
+		assertFalse(operator.paymentValidation(bd("5000.00"), aliceAccount),
+				"5000.00 from account 1001 (balance 2000.00)");
 	}
 
 	@Test
 	public void paymentValidationRejectsZeroOrNegativeAmount() {
-		assertFalse(operator.paymentValidation(0.00, aliceAccount), "zero amount");
-		assertFalse(operator.paymentValidation(-50.00, aliceAccount), "negative amount");
+		assertFalse(operator.paymentValidation(bd("0.00"), aliceAccount), "zero amount");
+		assertFalse(operator.paymentValidation(bd("-50.00"), aliceAccount), "negative amount");
 	}
 
 	@Test
 	public void paymentValidationRejectsMissingAmountOrAccount() {
 		assertFalse(operator.paymentValidation(null, aliceAccount), "null amount");
-		assertFalse(operator.paymentValidation(100.00, null), "null account");
+		assertFalse(operator.paymentValidation(bd("100.00"), null), "null account");
+	}
+
+	@Test
+	public void paymentValidationRejectsFractionsOfAPenny() {
+		assertFalse(operator.paymentValidation(bd("10.005"), aliceAccount), "10.005 has 3 decimal places");
+		assertTrue(operator.paymentValidation(bd("10.500"), aliceAccount), "trailing zeros are whole pennies");
+	}
+
+	@Test
+	public void makePaymentRejectsFractionsOfAPenny() {
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, bd("0.001"), aliceAccount));
+
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
+		assertEquals(bd("800.00"), loan(101L).getCurrentDebt());
+	}
+
+	@Test
+	public void repeatedSmallPaymentsAreExact() {
+		for (int i = 0; i < 3; i++) {
+			pay(202L, bd("0.10"), bobMainAccount);
+		}
+
+		// with doubles 2000.00 - 0.10 * 3 drifts away from 1999.70
+		assertEquals(bd("1999.70"), loan(202L).getCurrentDebt());
+		assertEquals(bd("4999.70"), bobMainAccount.getBalance());
+	}
+
+	@Test
+	public void payingOffInSmallPaymentsClosesTheLoan() {
+		LoanRequest loan = new LoanRequest(301L, alice, bd("0.30"), bd("0.30"), bd("0.05"), true, true, false,
+				new ArrayList<>());
+		alice.addLoanRequest(loan);
+
+		for (int i = 0; i < 3; i++) {
+			pay(301L, bd("0.10"), aliceAccount);
+		}
+
+		assertEquals(bd("0.00"), loan.getCurrentDebt());
+		assertFalse(operator.activeLoan(301L), "0.30 debt paid in three 0.10 payments");
 	}
 
 	@Test
 	public void paymentValidationDoesNotChangeBalance() {
-		operator.paymentValidation(500.00, aliceAccount);
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		operator.paymentValidation(bd("500.00"), aliceAccount);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
@@ -136,8 +182,8 @@ public class LoanPaymentOperationTest {
 
 		assertEquals(101L, loan.getLoanRequestId());
 		assertEquals(1L, loan.getCustomer().getCustomerId());
-		assertEquals(1000.00, loan.getRequestedAmount(), DELTA);
-		assertEquals(0.05, loan.getInterestRate(), DELTA);
+		assertEquals(bd("1000.00"), loan.getRequestedAmount());
+		assertEquals(bd("0.05"), loan.getInterestRate());
 		assertTrue(loan.isApproved());
 	}
 
@@ -163,16 +209,16 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void makePaymentReducesDebtAndDebitsAccount() {
-		LoanRequest updated = pay(101L, 200.00, aliceAccount).getLoanRequest();
+		LoanRequest updated = pay(101L, bd("200.00"), aliceAccount).getLoanRequest();
 
 		assertEquals(101L, updated.getLoanRequestId());
-		assertEquals(600.00, updated.getCurrentDebt(), DELTA, "debt on returned loan 101");
-		assertEquals(1800.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("600.00"), updated.getCurrentDebt(), "debt on returned loan 101");
+		assertEquals(bd("1800.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void makePaymentRecordsPaymentInHistory() {
-		pay(101L, 200.00, aliceAccount);
+		pay(101L, bd("200.00"), aliceAccount);
 
 		LoanRequest updated = operator.getLoanRequest(101L);
 
@@ -181,7 +227,7 @@ public class LoanPaymentOperationTest {
 
 		LoanPayment latest = history.get(history.size() - 1);
 		assertEquals(6L, latest.getPaymentId(), "id of payment recorded in history");
-		assertEquals(200.00, latest.getAmount(), DELTA);
+		assertEquals(bd("200.00"), latest.getAmount());
 		assertEquals(1001L, latest.getSourceAccount().getAccountId());
 		assertEquals(101L, latest.getLoanRequest().getLoanRequestId());
 		assertNotNull(latest.getDate());
@@ -189,75 +235,75 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void makePaymentFromSecondAccountOnlyDebitsThatAccount() {
-		LoanRequest updated = pay(202L, 300.00, bobSecondAccount).getLoanRequest();
+		LoanRequest updated = pay(202L, bd("300.00"), bobSecondAccount).getLoanRequest();
 
-		assertEquals(1700.00, updated.getCurrentDebt(), DELTA, "debt on returned loan 202");
-		assertEquals(0.00, bobSecondAccount.getBalance(), DELTA);
-		assertEquals(5000.00, bobMainAccount.getBalance(), DELTA);
+		assertEquals(bd("1700.00"), updated.getCurrentDebt(), "debt on returned loan 202");
+		assertEquals(bd("0.00"), bobSecondAccount.getBalance());
+		assertEquals(bd("5000.00"), bobMainAccount.getBalance());
 	}
 
 	@Test
 	public void consecutivePaymentsAccumulate() {
-		LoanPayment first = pay(201L, 1000.00, bobMainAccount);
-		LoanPayment second = pay(201L, 250.00, bobSecondAccount);
+		LoanPayment first = pay(201L, bd("1000.00"), bobMainAccount);
+		LoanPayment second = pay(201L, bd("250.00"), bobSecondAccount);
 		LoanRequest updated = second.getLoanRequest();
 
 		assertEquals(6L, first.getPaymentId(), "id of first new payment");
 		assertEquals(7L, second.getPaymentId(), "id of second new payment");
 
-		assertEquals(2750.00, updated.getCurrentDebt(), DELTA, "debt on returned loan 201");
-		assertEquals(4000.00, bobMainAccount.getBalance(), DELTA);
-		assertEquals(50.00, bobSecondAccount.getBalance(), DELTA);
+		assertEquals(bd("2750.00"), updated.getCurrentDebt(), "debt on returned loan 201");
+		assertEquals(bd("4000.00"), bobMainAccount.getBalance());
+		assertEquals(bd("50.00"), bobSecondAccount.getBalance());
 		assertEquals(4, updated.getLoanPayments().size());
 	}
 
 	@Test
 	public void makePaymentForFullDebtClosesTheLoan() {
-		LoanRequest updated = pay(202L, 2000.00, bobMainAccount).getLoanRequest();
+		LoanRequest updated = pay(202L, bd("2000.00"), bobMainAccount).getLoanRequest();
 
-		assertEquals(0.00, updated.getCurrentDebt(), DELTA, "debt on returned loan 202");
+		assertEquals(bd("0.00"), updated.getCurrentDebt(), "debt on returned loan 202");
 		assertFalse(operator.activeLoan(202L), "loan 202 active after being paid off");
 	}
 
 	@Test
 	public void makePaymentRejectsAmountExceedingAccountBalance() {
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(202L, 500.00, bobSecondAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(202L, bd("500.00"), bobSecondAccount));
 
-		assertEquals(300.00, bobSecondAccount.getBalance(), DELTA);
+		assertEquals(bd("300.00"), bobSecondAccount.getBalance());
 	}
 
 	@Test
 	public void makePaymentRejectsAmountExceedingOutstandingDebt() {
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, 900.00, aliceAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, bd("900.00"), aliceAccount));
 
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void makePaymentRejectsZeroOrNegativeAmount() {
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, 0.00, aliceAccount));
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, -100.00, aliceAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, bd("0.00"), aliceAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(101L, bd("-100.00"), aliceAccount));
 
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void makePaymentRejectsPaymentOnRejectedLoan() {
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(102L, 100.00, aliceAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(102L, bd("100.00"), aliceAccount));
 
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void makePaymentRejectsUnknownLoan() {
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(999L, 100.00, aliceAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(999L, bd("100.00"), aliceAccount));
 
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void makePaymentAssignsNextPaymentId() {
-		LoanPayment payment = pay(101L, 200.00, aliceAccount);
+		LoanPayment payment = pay(101L, bd("200.00"), aliceAccount);
 
 		assertNotNull(payment.getPaymentId(), "payment id");
 		assertEquals(6L, payment.getPaymentId(), "fixture holds payments 1-5, so the next id is 6");
@@ -265,9 +311,9 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void makePaymentIdsAreSequentialAcrossLoansAndCustomers() {
-		LoanPayment alicePayment = pay(101L, 100.00, aliceAccount);
-		LoanPayment bobPayment = pay(202L, 100.00, bobMainAccount);
-		LoanPayment bobOtherLoanPayment = pay(201L, 100.00, bobSecondAccount);
+		LoanPayment alicePayment = pay(101L, bd("100.00"), aliceAccount);
+		LoanPayment bobPayment = pay(202L, bd("100.00"), bobMainAccount);
+		LoanPayment bobOtherLoanPayment = pay(201L, bd("100.00"), bobSecondAccount);
 
 		assertEquals(6L, alicePayment.getPaymentId());
 		assertEquals(7L, bobPayment.getPaymentId());
@@ -276,9 +322,9 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void makePaymentIdsAreUniqueAcrossAllLoans() {
-		pay(101L, 100.00, aliceAccount);
-		pay(201L, 100.00, bobMainAccount);
-		pay(202L, 100.00, bobMainAccount);
+		pay(101L, bd("100.00"), aliceAccount);
+		pay(201L, bd("100.00"), bobMainAccount);
+		pay(202L, bd("100.00"), bobMainAccount);
 
 		List<Long> allIds = new ArrayList<>();
 		for (Long loanId : List.of(101L, 102L, 103L, 201L, 202L)) {
@@ -292,10 +338,10 @@ public class LoanPaymentOperationTest {
 
 	@Test
 	public void rejectedPaymentDoesNotConsumeAnId() {
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(202L, 500.00, bobSecondAccount));
-		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(102L, 100.00, aliceAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(202L, bd("500.00"), bobSecondAccount));
+		assertThrows(IllegalArgumentException.class, () -> operator.makePayment(102L, bd("100.00"), aliceAccount));
 
-		assertEquals(6L, pay(101L, 100.00, aliceAccount).getPaymentId());
+		assertEquals(6L, pay(101L, bd("100.00"), aliceAccount).getPaymentId());
 	}
 
 	@Test
@@ -304,8 +350,8 @@ public class LoanPaymentOperationTest {
 
 		assertEquals(2, history.size());
 		assertEquals(List.of(1L, 2L), paymentIds(history));
-		assertEquals(150.00, history.get(0).getAmount(), DELTA);
-		assertEquals(100.00, history.get(1).getAmount(), DELTA);
+		assertEquals(bd("150.00"), history.get(0).getAmount());
+		assertEquals(bd("100.00"), history.get(1).getAmount());
 		assertTrue(history.stream().allMatch(p -> p.getSourceAccount().getAccountId() == 1001L));
 	}
 
@@ -345,13 +391,17 @@ public class LoanPaymentOperationTest {
 
 	// --- Helpers ---
 
+	private static BigDecimal bd(String amount) {
+		return new BigDecimal(amount);
+	}
+
 	private LoanRequest loan(Long loanRequestId) {
 		LoanRequest loan = operator.getLoanRequest(loanRequestId);
 		assertNotNull(loan, "getLoanRequest(" + loanRequestId + ") returned null");
 		return loan;
 	}
 
-	private LoanPayment pay(Long loanRequestId, Double amount, Account sourceAccount) {
+	private LoanPayment pay(Long loanRequestId, BigDecimal amount, Account sourceAccount) {
 		LoanPayment payment = operator.makePayment(loanRequestId, amount, sourceAccount);
 		assertNotNull(payment, "makePayment(" + loanRequestId + ", " + amount + ") returned null");
 		return payment;

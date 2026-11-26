@@ -1,25 +1,27 @@
 package newbank.server.loans.models;
+
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.ArrayList;
 
 public class LoanRequest {
 	private Long loanRequestId;
 	private Customer customer;
-	private Double requestedAmount;
-	private Double currentDebt;
-	private Double interestRate;
+	private BigDecimal requestedAmount;
+	private BigDecimal currentDebt;
+	private BigDecimal interestRate;
 	private Boolean active;
 	private Boolean approved;
 	private Boolean pending;
 	private List<LoanPayment> loanPayments;
 
 	// New Loan Request
-	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt,
-			Double interestRate) {
+	public LoanRequest(Long loanRequestId, Customer customer, BigDecimal requestedAmount, BigDecimal currentDebt,
+			BigDecimal interestRate) {
 		this.loanRequestId = loanRequestId;
 		this.customer = customer;
-		this.requestedAmount = requestedAmount;
-		this.currentDebt = currentDebt;
+		this.requestedAmount = Money.of(requestedAmount);
+		this.currentDebt = Money.of(currentDebt);
 		this.interestRate = interestRate;
 		this.active = false;
 		this.approved = false;
@@ -28,12 +30,13 @@ public class LoanRequest {
 	}
 
 	// Existing Loan Request
-	public LoanRequest(Long loanRequestId, Customer customer, Double requestedAmount, Double currentDebt,
-			Double interestRate, Boolean active, Boolean approved, Boolean pending, List<LoanPayment> loanPayments) {
+	public LoanRequest(Long loanRequestId, Customer customer, BigDecimal requestedAmount, BigDecimal currentDebt,
+			BigDecimal interestRate, Boolean active, Boolean approved, Boolean pending,
+			List<LoanPayment> loanPayments) {
 		this.loanRequestId = loanRequestId;
 		this.customer = customer;
-		this.requestedAmount = requestedAmount;
-		this.currentDebt = currentDebt;
+		this.requestedAmount = Money.of(requestedAmount);
+		this.currentDebt = Money.of(currentDebt);
 		this.interestRate = interestRate;
 		this.active = active;
 		this.approved = approved;
@@ -49,15 +52,15 @@ public class LoanRequest {
 		return customer;
 	}
 
-	public Double getRequestedAmount() {
+	public BigDecimal getRequestedAmount() {
 		return requestedAmount;
 	}
 
-	public Double getCurrentDebt() {
+	public BigDecimal getCurrentDebt() {
 		return currentDebt;
 	}
 
-	public Double getInterestRate() {
+	public BigDecimal getInterestRate() {
 		return interestRate;
 	}
 
@@ -83,12 +86,12 @@ public class LoanRequest {
 		this.active = true;
 	}
 
-	public void reduceDebt(Double amount) {
-		this.currentDebt -= amount;
+	public void reduceDebt(BigDecimal amount) {
+		this.currentDebt = currentDebt.subtract(Money.of(amount));
 	}
 
 	public void close() {
-		if (this.currentDebt == 0.0) {
+		if (this.currentDebt.signum() == 0) {
 			this.active = false;
 		}
 	}

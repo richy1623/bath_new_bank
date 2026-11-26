@@ -59,7 +59,7 @@ public class Account {
 		this.status = java.util.Objects.requireNonNull(status);
 	}
 
-	BigDecimal balanceAmount() {
+	public BigDecimal balanceAmount() {
 		return balance;
 	}
 

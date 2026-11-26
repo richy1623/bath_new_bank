@@ -2,6 +2,7 @@ package newbank.server.loans.services;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +16,6 @@ import newbank.server.loans.models.LoanPayment;
 import newbank.server.loans.models.LoanRequest;
 
 public class CustomerLoanOperationsTest {
-
-	private static final double DELTA = 0.001;
 
 	private CustomerLoanOperations operator;
 
@@ -36,26 +35,29 @@ public class CustomerLoanOperationsTest {
 	public void setUp() {
 		// --- Initializing testing objects ---
 		alice = new Customer(1L, "Alice Smith", "NI-AS-001", new ArrayList<>(), new ArrayList<>());
-		aliceAccount = new Account(1001L, alice, 2000.00);
+		aliceAccount = new Account(1001L, alice, bd("2000.00"));
 		alice.addAccount(aliceAccount);
 
-		aliceApprovedLoan = new LoanRequest(101L, alice, 1000.00, 800.00, 0.05, true, true, false, new ArrayList<>());
-		aliceApprovedLoan.getLoanPayments()
-				.add(new LoanPayment(1L, 200.00, LocalDateTime.of(2026, 9, 1, 10, 0), aliceAccount, aliceApprovedLoan));
-		aliceRejectedLoan = new LoanRequest(102L, alice, 3000.00, 0.00, 0.05, false, false, false, new ArrayList<>());
+		aliceApprovedLoan = new LoanRequest(101L, alice, bd("1000.00"), bd("800.00"), bd("0.05"), true, true, false,
+				new ArrayList<>());
+		aliceApprovedLoan.getLoanPayments().add(new LoanPayment(1L, bd("200.00"), LocalDateTime.of(2026, 9, 1, 10, 0),
+				aliceAccount, aliceApprovedLoan));
+		aliceRejectedLoan = new LoanRequest(102L, alice, bd("3000.00"), bd("0.00"), bd("0.05"), false, false, false,
+				new ArrayList<>());
 
 		alice.addLoanRequest(aliceApprovedLoan);
 		alice.addLoanRequest(aliceRejectedLoan);
 
 		bob = new Customer(2L, "Bob Jones", "NI-BJ-002", new ArrayList<>(), new ArrayList<>());
-		bobAccount = new Account(2001L, bob, 5000.00);
+		bobAccount = new Account(2001L, bob, bd("5000.00"));
 		bob.addAccount(bobAccount);
 
-		bobLoan = new LoanRequest(201L, bob, 5000.00, 4000.00, 0.04, true, true, false, new ArrayList<>());
+		bobLoan = new LoanRequest(201L, bob, bd("5000.00"), bd("4000.00"), bd("0.04"), true, true, false,
+				new ArrayList<>());
 		bob.addLoanRequest(bobLoan);
 
 		carol = new Customer(3L, "Carol White", "NI-CW-003", new ArrayList<>(), new ArrayList<>());
-		carolAccount = new Account(3001L, carol, 150.00);
+		carolAccount = new Account(3001L, carol, bd("150.00"));
 		carol.addAccount(carolAccount);
 
 		operator = new LoanService(new ArrayList<Customer>(List.of(alice, bob, carol)));
@@ -65,17 +67,17 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestReturnsRequestWithGivenDetails() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		assertNotNull(request.getLoanRequestId(), "new request id");
 		assertSame(alice, request.getCustomer());
-		assertEquals(1500.00, request.getRequestedAmount(), DELTA);
-		assertEquals(0.07, request.getInterestRate(), DELTA);
+		assertEquals(bd("1500.00"), request.getRequestedAmount());
+		assertEquals(bd("0.07"), request.getInterestRate());
 	}
 
 	@Test
 	public void newLoanRequestIsPendingAndNotYetApprovedOrActive() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		assertTrue(request.isPending(), "new request pending");
 		assertFalse(request.isApproved(), "new request approved");
@@ -84,7 +86,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestStartsWithEmptyPaymentHistory() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		assertNotNull(request.getLoanPayments(), "payment history of new request");
 		assertTrue(request.getLoanPayments().isEmpty());
@@ -92,7 +94,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestIsAddedToCustomerLoans() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		assertEquals(3, alice.getLoanRequests().size());
 		assertTrue(alice.getLoanRequests().contains(request));
@@ -100,7 +102,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestForCustomerWithoutLoans() {
-		LoanRequest request = request(carol, 100.00, 0.10);
+		LoanRequest request = request(carol, bd("100.00"), bd("0.10"));
 
 		assertEquals(List.of(request), carol.getLoanRequests());
 		assertTrue(request.isPending());
@@ -108,7 +110,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestDoesNotAffectOtherCustomers() {
-		request(alice, 1500.00, 0.07);
+		request(alice, bd("1500.00"), bd("0.07"));
 
 		assertEquals(List.of(bobLoan), bob.getLoanRequests());
 		assertTrue(carol.getLoanRequests().isEmpty());
@@ -116,9 +118,9 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestDoesNotChangeExistingLoans() {
-		request(alice, 1500.00, 0.07);
+		request(alice, bd("1500.00"), bd("0.07"));
 
-		assertEquals(800.00, aliceApprovedLoan.getCurrentDebt(), DELTA);
+		assertEquals(bd("800.00"), aliceApprovedLoan.getCurrentDebt());
 		assertTrue(aliceApprovedLoan.isActive());
 		assertTrue(aliceApprovedLoan.isApproved());
 		assertFalse(aliceRejectedLoan.isApproved());
@@ -127,16 +129,16 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestDoesNotMoveMoney() {
-		request(alice, 1500.00, 0.07);
+		request(alice, bd("1500.00"), bd("0.07"));
 
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void newLoanRequestsGetUniqueIds() {
-		LoanRequest first = request(alice, 1500.00, 0.07);
-		LoanRequest second = request(alice, 1500.00, 0.07);
-		LoanRequest third = request(bob, 700.00, 0.03);
+		LoanRequest first = request(alice, bd("1500.00"), bd("0.07"));
+		LoanRequest second = request(alice, bd("1500.00"), bd("0.07"));
+		LoanRequest third = request(bob, bd("700.00"), bd("0.03"));
 
 		assertNotEquals(first.getLoanRequestId(), second.getLoanRequestId());
 		assertNotEquals(first.getLoanRequestId(), third.getLoanRequestId());
@@ -145,7 +147,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestIdsDoNotClashWithExistingLoans() {
-		Long id = request(bob, 700.00, 0.03).getLoanRequestId();
+		Long id = request(bob, bd("700.00"), bd("0.03")).getLoanRequestId();
 
 		assertNotEquals(101L, id);
 		assertNotEquals(102L, id);
@@ -154,34 +156,49 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void newLoanRequestRejectsMissingCustomer() {
-		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(null, 1500.00, 0.07));
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(null, bd("1500.00"), bd("0.07")));
 	}
 
 	@Test
 	public void newLoanRequestRejectsMissingAmount() {
-		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, null, 0.07));
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, null, bd("0.07")));
 
 		assertEquals(2, alice.getLoanRequests().size());
 	}
 
 	@Test
 	public void newLoanRequestRejectsZeroOrNegativeAmount() {
-		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, 0.00, 0.07));
-		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, -500.00, 0.07));
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, bd("0.00"), bd("0.07")));
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, bd("-500.00"), bd("0.07")));
 
 		assertEquals(2, alice.getLoanRequests().size());
 	}
 
 	@Test
+	public void newLoanRequestRejectsFractionsOfAPenny() {
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, bd("1500.005"), bd("0.07")));
+
+		assertEquals(2, alice.getLoanRequests().size());
+	}
+
+	@Test
+	public void newLoanRequestStoresAmountWithTwoDecimalPlaces() {
+		LoanRequest request = request(alice, bd("1500"), bd("0.07"));
+
+		assertEquals(bd("1500.00"), request.getRequestedAmount());
+		assertEquals(bd("1500.00"), request.getCurrentDebt());
+	}
+
+	@Test
 	public void newLoanRequestRejectsMissingInterestRate() {
-		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, 1500.00, null));
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, bd("1500.00"), null));
 
 		assertEquals(2, alice.getLoanRequests().size());
 	}
 
 	@Test
 	public void newLoanRequestRejectsNegativeInterestRate() {
-		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, 1500.00, -0.01));
+		assertThrows(IllegalArgumentException.class, () -> operator.newLoanRequest(alice, bd("1500.00"), bd("-0.01")));
 
 		assertEquals(2, alice.getLoanRequests().size());
 	}
@@ -190,14 +207,14 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void studyCreditReturnsADecision() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		assertNotNull(operator.studyCredit(request.getLoanRequestId()), "studyCredit decision");
 	}
 
 	@Test
 	public void studyCreditClearsPendingFlag() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		operator.studyCredit(request.getLoanRequestId());
 
@@ -206,7 +223,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void studyCreditDecisionMatchesApprovedFlag() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		Boolean decision = operator.studyCredit(request.getLoanRequestId());
 
@@ -215,7 +232,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void studyCreditRejectedRequestIsNotActive() {
-		LoanRequest request = request(carol, 100000.00, 0.20);
+		LoanRequest request = request(carol, bd("100000.00"), bd("0.20"));
 
 		Boolean decision = operator.studyCredit(request.getLoanRequestId());
 
@@ -226,33 +243,33 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void studyCreditOnlyUpdatesDecision() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 		Long id = request.getLoanRequestId();
-		Double debtBefore = request.getCurrentDebt();
+		BigDecimal debtBefore = request.getCurrentDebt();
 
 		operator.studyCredit(id);
 
 		assertEquals(id, request.getLoanRequestId());
 		assertSame(alice, request.getCustomer());
-		assertEquals(1500.00, request.getRequestedAmount(), DELTA);
-		assertEquals(0.07, request.getInterestRate(), DELTA);
+		assertEquals(bd("1500.00"), request.getRequestedAmount());
+		assertEquals(bd("0.07"), request.getInterestRate());
 		assertEquals(debtBefore, request.getCurrentDebt(), "current debt after study");
 		assertTrue(request.getLoanPayments().isEmpty());
 	}
 
 	@Test
 	public void studyCreditDoesNotMoveMoney() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		operator.studyCredit(request.getLoanRequestId());
 
-		assertEquals(2000.00, aliceAccount.getBalance(), DELTA);
+		assertEquals(bd("2000.00"), aliceAccount.getBalance());
 	}
 
 	@Test
 	public void studyCreditOnlyAffectsTheStudiedRequest() {
-		LoanRequest studied = request(alice, 1500.00, 0.07);
-		LoanRequest untouched = request(alice, 600.00, 0.05);
+		LoanRequest studied = request(alice, bd("1500.00"), bd("0.07"));
+		LoanRequest untouched = request(alice, bd("600.00"), bd("0.05"));
 
 		operator.studyCredit(studied.getLoanRequestId());
 
@@ -260,12 +277,12 @@ public class CustomerLoanOperationsTest {
 		assertFalse(untouched.isApproved(), "other request approved");
 		assertFalse(untouched.isActive(), "other request active");
 		assertTrue(aliceApprovedLoan.isActive());
-		assertEquals(800.00, aliceApprovedLoan.getCurrentDebt(), DELTA);
+		assertEquals(bd("800.00"), aliceApprovedLoan.getCurrentDebt());
 	}
 
 	@Test
 	public void studyCreditKeepsRequestInCustomerLoans() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 
 		operator.studyCredit(request.getLoanRequestId());
 
@@ -301,7 +318,7 @@ public class CustomerLoanOperationsTest {
 
 	@Test
 	public void studyCreditCannotStudyTheSameRequestTwice() {
-		LoanRequest request = request(alice, 1500.00, 0.07);
+		LoanRequest request = request(alice, bd("1500.00"), bd("0.07"));
 		Long id = request.getLoanRequestId();
 
 		Boolean decision = operator.studyCredit(id);
@@ -312,7 +329,11 @@ public class CustomerLoanOperationsTest {
 
 	// --- Helpers ---
 
-	private LoanRequest request(Customer customer, Double amount, Double interestRate) {
+	private static BigDecimal bd(String amount) {
+		return new BigDecimal(amount);
+	}
+
+	private LoanRequest request(Customer customer, BigDecimal amount, BigDecimal interestRate) {
 		LoanRequest request = operator.newLoanRequest(customer, amount, interestRate);
 		assertNotNull(request,
 				"newLoanRequest(customer " + customer.getCustomerId() + ", " + amount + ") returned null");

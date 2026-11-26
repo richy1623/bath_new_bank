@@ -1,20 +1,22 @@
 package newbank.server.loans.models;
 
+import java.math.BigDecimal;
+
 public class Account {
 	private Long accountId;
 	private Customer customer;
-	private Double balance;
+	private BigDecimal balance;
 
-	public Account(Long accountId, Customer customer, Double balance) {
+	public Account(Long accountId, Customer customer, BigDecimal balance) {
 		this.accountId = accountId;
 		this.customer = customer;
-		this.balance = balance;
+		this.balance = Money.of(balance);
 	}
 
 	public Account(newbank.server.Account account) {
 		this.accountId = account.getAccountId();
 		this.customer = new Customer(account.getCustomer());
-		this.balance = account.getBalance();
+		this.balance = account.balanceAmount();
 	}
 
 	public Long getAccountId() {
@@ -25,11 +27,11 @@ public class Account {
 		return customer;
 	}
 
-	public Double getBalance() {
+	public BigDecimal getBalance() {
 		return balance;
 	}
 
-	public void makePayment(Double amount) {
-		this.balance -= amount;
+	public void makePayment(BigDecimal amount) {
+		this.balance = balance.subtract(Money.of(amount));
 	}
 }

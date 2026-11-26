@@ -1,5 +1,6 @@
 package newbank.server.loans.services;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import newbank.server.loans.models.Customer;
 import newbank.server.loans.models.Account;
 import newbank.server.loans.models.LoanPayment;
 import newbank.server.loans.models.LoanRequest;
+import newbank.server.loans.models.Money;
 
 public class LoanService implements LoanPaymentOperation, CustomerLoanOperations {
 
@@ -17,11 +19,13 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 	}
 
 	@Override
-	public Boolean paymentValidation(Double amount, Account sourceAccount) {
+	public Boolean paymentValidation(BigDecimal amount, Account sourceAccount) {
 		// 1. Check not null values
 		Boolean notNull = amount != null && sourceAccount != null;
-		// 2. Return response (true if enough money is found in the account)
-		return notNull && amount > 0 && sourceAccount.getBalance() >= amount;
+		// 2. Return response (true if a whole-penny amount and enough money is found in
+		// the account)
+		return notNull && amount.signum() > 0 && Money.hasAtMostTwoDecimals(amount)
+				&& sourceAccount.getBalance().compareTo(amount) >= 0;
 	}
 
 	@Override
@@ -29,7 +33,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 		// 1. Get the current loan
 		LoanRequest loan = getLoanRequest(loanRequestId);
 		// 2. Check if the loan is active
-		return loan != null && loan.isActive();
+		return loan != null && loan.isActive() && loan.isApproved();
 	}
 
 	@Override
@@ -48,7 +52,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 	}
 
 	@Override
-	public LoanPayment makePayment(Long loanRequestId, Double amount, Account sourceAccount) {
+	public LoanPayment makePayment(Long loanRequestId, BigDecimal amount, Account sourceAccount) {
 		// 1. Get the loan request
 		LoanRequest loan = getLoanRequest(loanRequestId);
 		// 2. Validate the loan, payment amount, source account's balance and debt
@@ -57,7 +61,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 			throw new IllegalArgumentException("No loan was found with the given id");
 		} else if (!paymentValidation(amount, sourceAccount)) {
 			throw new IllegalArgumentException("Invalid payment (zero or negative amount) or account not found");
-		} else if (loan.getCurrentDebt() != null && loan.getCurrentDebt() < amount) {
+		} else if (loan.getCurrentDebt() != null && loan.getCurrentDebt().compareTo(amount) < 0) {
 			throw new IllegalArgumentException("Payment value exceeds the current debt");
 		}
 		// 3. Validate the loan's active status
@@ -104,7 +108,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 	}
 
 	@Override
-	public Double getCurrentLoanDebt(Long loanRequestId) {
+	public BigDecimal getCurrentLoanDebt(Long loanRequestId) {
 		// 1. Validate loan existence
 		LoanRequest loan = getLoanRequest(loanRequestId);
 		if (loan == null) {
@@ -115,15 +119,15 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 	}
 
 	@Override
-	public LoanRequest newLoanRequest(Customer customer, Double amount, Double interestRate) {
+	public LoanRequest newLoanRequest(Customer customer, BigDecimal amount, BigDecimal interestRate) {
 		// 1. Validate customer, amount and interest rate
 		if (customer == null) {
 			throw new IllegalArgumentException("Invalid customer");
 		}
-		if (amount == null || amount <= 0) {
+		if (amount == null || amount.signum() <= 0 || !Money.hasAtMostTwoDecimals(amount)) {
 			throw new IllegalArgumentException("Invalid loan amount");
 		}
-		if (interestRate == null || interestRate <= 0) {
+		if (interestRate == null || interestRate.signum() <= 0) {
 			throw new IllegalArgumentException("Invalid interest rate");
 		}
 		// 2. Estimate last loan ID
