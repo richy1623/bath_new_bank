@@ -48,7 +48,7 @@ class AccountActivityTest {
 			assertEquals("No transactions", bank.processRequest(id, "SHOWACTIVITY Cheque"));
 			assertTrue(bank.processRequest(id, "SHOWACTIVITY Investment").startsWith("FAIL"));
 			assertTrue(bank.processRequest(id, "SHOWACTIVITY").startsWith("FAIL"));
-			assertEquals("FAIL: Unknown command",
+			assertEquals("FAIL: No active customer session",
 					bank.processRequest(new CustomerID("unknown"), "SHOWACTIVITY Savings"));
 		}
 	}
@@ -83,7 +83,7 @@ class AccountActivityTest {
 			Files.deleteIfExists(path);
 			Files.writeString(path, before);
 		}
-		assertEquals("", bank.processRequest(id, "SHOWMYACCOUNTS"));
+		assertEquals("No accounts", bank.processRequest(id, "SHOWMYACCOUNTS"));
 		assertTrue(bank.processRequest(id, "SHOWACTIVITY Savings").startsWith("FAIL"));
 		assertEquals(before, Files.readString(Path.of(file())));
 		assertEquals("SUCCESS", bank.processRequest(id, "NEWACCOUNT Savings"));

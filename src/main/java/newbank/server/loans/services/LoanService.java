@@ -60,7 +60,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 		} else if (loan.getCurrentDebt() != null && loan.getCurrentDebt() < amount) {
 			throw new IllegalArgumentException("Payment value exceeds the current debt");
 		}
-		//3. Validate the loan's active status
+		// 3. Validate the loan's active status
 		if (!activeLoan(loanRequestId)) {
 			throw new IllegalArgumentException("Loan is not active");
 		}

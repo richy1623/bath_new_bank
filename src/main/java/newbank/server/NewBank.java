@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 public class NewBank {
 
@@ -143,8 +145,8 @@ public class NewBank {
 
 	// commands from the NewBank customer are processed in this method
 	public synchronized String processRequest(CustomerID customer, String request) {
-		if (request == null || !customers.containsKey(customer.getKey())) {
-			return "FAIL: Unknown command";
+		if (customer == null || request == null || !customers.containsKey(customer.getKey())) {
+			return "FAIL: No active customer session";
 		}
 		String trimmed = request.trim();
 		if (trimmed.isEmpty()) {
@@ -152,6 +154,14 @@ public class NewBank {
 		}
 		String[] parts = trimmed.split("\\s+");
 		String command = parts[0];
+		// Keep transfer-related commands outside the core command switch so independent
+		// features can add switch cases without colliding in NewBank.java.
+		if ("SHOWACCOUNTDETAILS".equals(command)) {
+			return showAccountDetails(customer, parts);
+		}
+		if ("TRANSFER".equals(command)) {
+			return transfer(customer, parts);
+		}
 		switch (command) {
 			case "SHOWMYACCOUNTS" :
 				return showMyAccounts(customer);
@@ -167,7 +177,8 @@ public class NewBank {
 	}
 
 	private String showMyAccounts(CustomerID customer) {
-		return (customers.get(customer.getKey())).accountsToString();
+		String accounts = customers.get(customer.getKey()).accountsToString();
+		return accounts.isEmpty() ? "No accounts" : accounts;
 	}
 
 	// NEWACCOUNT <Type>: opening balance is always 0
@@ -230,6 +241,86 @@ public class NewBank {
 			}
 		}
 		return null;
+	}
+
+	// Keep SHOWMYACCOUNTS compatible; use this command to discover account numbers.
+	private String showAccountDetails(CustomerID customerID, String[] parts) {
+		if (parts.length != 1) {
+			return "FAIL: Type SHOWACCOUNTDETAILS";
+		}
+		String result = "";
+		for (Account account : customers.get(customerID.getKey()).getAccounts()) {
+			if (!result.isEmpty()) {
+				result += "; ";
+			}
+			result += account.getAccountName() + " | " + account.getAccountNumber() + " | " + account.getStatus()
+					+ " | " + Account.format(account.balanceAmount());
+		}
+		return result;
+	}
+
+	// All commands hold the bank lock, so no request observes half a transfer.
+	private String transfer(CustomerID customerID, String[] parts) {
+		if (parts.length != 4) {
+			return "FAIL: Type TRANSFER <FromType> <ReceivingAccountNumber> <Amount>";
+		}
+		BigDecimal amount;
+		try {
+			if (!parts[3].matches("[0-9]{1,12}([.][0-9]{1,2})?")) {
+				return "FAIL: Amount must be a positive number with at most 2 decimal places";
+			}
+			BigDecimal parsed = new BigDecimal(parts[3]);
+			if (parsed.signum() <= 0 || parsed.compareTo(new BigDecimal("999999999999.99")) > 0) {
+				return "FAIL: Amount must be between 0.01 and 999999999999.99";
+			}
+			amount = parsed.setScale(2, RoundingMode.UNNECESSARY);
+		} catch (NumberFormatException | ArithmeticException e) {
+			return "FAIL: Amount must be a positive number with at most 2 decimal places";
+		}
+		Customer payer = customers.get(customerID.getKey());
+		Account from = payer.getAccount(parts[1]);
+		if (from == null) {
+			return "FAIL: Source account not found";
+		}
+		Account to = null;
+		Customer receiver = null;
+		for (Customer candidate : customers.values()) {
+			for (Account account : candidate.getAccounts()) {
+				if (parts[2].equals(account.getAccountNumber())) {
+					to = account;
+					receiver = candidate;
+				}
+			}
+		}
+		if (to == null) {
+			return "FAIL: Receiving account not found";
+		}
+		if (from == to) {
+			return "FAIL: Source and receiving accounts must be different";
+		}
+		if (from.getStatus() != Account.Status.ACTIVE || to.getStatus() != Account.Status.ACTIVE) {
+			return "FAIL: Both accounts must be Active";
+		}
+		if (from.balanceAmount().compareTo(amount) < 0) {
+			return "FAIL: Not enough money";
+		}
+		if (!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		BigDecimal fromBefore = from.balanceAmount();
+		BigDecimal toBefore = to.balanceAmount();
+		int fromCount = from.getTransactions().size();
+		int toCount = to.getTransactions().size();
+		LocalDate date = LocalDate.now(clock);
+		from.recordTransfer(amount.negate(), date, to.getAccountNumber());
+		to.recordTransfer(amount, date, from.getAccountNumber());
+		String error = saveCustomers();
+		if (error != null) {
+			from.restore(fromBefore, fromCount);
+			to.restore(toBefore, toCount);
+			return error;
+		}
+		return "SUCCESS";
 	}
 
 	private boolean containsFileSeparator(String value) {

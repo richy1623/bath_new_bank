@@ -2,28 +2,28 @@ package newbank.server;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.file.AtomicMoveNotSupportedException;
+import java.io.BufferedWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.math.BigDecimal;
 
 /**
  * Saves and loads customers to and from a plain text file.
  *
  * File format: one customer per line id,username,full
- * name,password,AccountName:balance[#txs];AccountName:balance[#txs] e.g.
- * 1,Bhagy,,,Savings:1000.0#2026-11-17~1000.0~Opening (test customer)
+ * name,password,AccountName:balance:number:status[#txs];... e.g.
+ * 1,Bhagy,,,Savings:1000.00:00000101:ACTIVE#2026-11-17~1000.0~Opening
  * 4,asmith,Alice Smith,secret, (registered customer with no accounts yet)
  * 5,bob,Bob,pw,Savings:0.0#2026-11-17~0.0~Opening
  *
- * Optional transaction list after #:
- * date~amount~beneficiary|date~amount~beneficiary
+ * Legacy AccountName:balance[#txs] entries are also supported. Optional
+ * transaction list after #: date~amount~beneficiary|date~amount~beneficiary
  *
  * Both methods throw IOException when something goes wrong, so the caller
  * (NewBank) can decide what to do instead of carrying on as if everything
@@ -55,7 +55,7 @@ public class CustomerDatabase {
 		}
 		Path temp = Files.createTempFile(target.toAbsolutePath().getParent(), "customers", ".tmp");
 		try {
-			try (PrintWriter file = new PrintWriter(new FileWriter(temp.toFile()))) {
+			try (BufferedWriter file = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
 				for (String userName : customers.keySet()) {
 					Customer c = customers.get(userName);
 					String fullName = (c.getFullName() == null) ? "" : c.getFullName();
@@ -65,24 +65,18 @@ public class CustomerDatabase {
 						if (!accounts.isEmpty()) {
 							accounts += ";";
 						}
-						accounts += a.getAccountName() + ":" + a.getBalance();
+						accounts += a.getAccountName() + ":" + a.balanceAmount().toPlainString() + ":"
+								+ a.getAccountNumber() + ":" + a.getStatus();
 						if (!a.getTransactions().isEmpty()) {
 							accounts += "#" + transactionsToString(a);
 						}
 					}
-					file.println(c.getId() + "," + userName + "," + fullName + "," + password + "," + accounts);
-				}
-				// PrintWriter never throws on println; it only records that an error happened,
-				// so we have to ask it, otherwise a failed write would look like a success
-				if (file.checkError()) {
-					throw new IOException("error while writing " + fileName);
+					file.write(c.getId() + "," + userName + "," + fullName + "," + password + "," + accounts);
+					file.newLine();
 				}
 			}
-			try {
-				Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-			} catch (AtomicMoveNotSupportedException e) {
-				Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-			}
+			// Fail safely rather than risk partial replacement on unsupported file systems.
+			Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} finally {
 			Files.deleteIfExists(temp);
 		}
@@ -93,7 +87,7 @@ public class CustomerDatabase {
 	// never leaves the bank with half of its customers.
 	public HashMap<String, Customer> load() throws IOException {
 		HashMap<String, Customer> customers = new HashMap<>();
-		try (BufferedReader file = new BufferedReader(new FileReader(fileName))) {
+		try (BufferedReader file = Files.newBufferedReader(Path.of(fileName), StandardCharsets.UTF_8)) {
 			String line;
 			int lineNumber = 0;
 			while ((line = file.readLine()) != null) {
@@ -109,14 +103,25 @@ public class CustomerDatabase {
 					Customer c = new Customer(Integer.parseInt(fields[0]), fields[2], fields[3]);
 					if (!fields[4].isEmpty()) {
 						for (String account : fields[4].split(";")) {
-							c.addAccount(parseAccount(account));
+							c.addLoadedAccount(parseAccount(account));
 						}
 					}
-					customers.put(fields[1], c);
-				} catch (NumberFormatException | ArrayIndexOutOfBoundsException
+					c.assignMissingAccountNumbers();
+					if (customers.putIfAbsent(fields[1], c) != null) {
+						throw new IllegalArgumentException("Duplicate username");
+					}
+				} catch (IllegalArgumentException | IndexOutOfBoundsException | ArithmeticException
 						| java.time.format.DateTimeParseException e) {
 					// a missing field, bad number or bad date means the file is damaged
 					throw new IOException("line " + lineNumber + " of " + fileName + " is not valid: " + line);
+				}
+			}
+		}
+		HashSet<String> numbers = new HashSet<>();
+		for (Customer customer : customers.values()) {
+			for (Account account : customer.getAccounts()) {
+				if (!numbers.add(account.getAccountNumber())) {
+					throw new IOException("Duplicate account number: " + account.getAccountNumber());
 				}
 			}
 		}
@@ -129,30 +134,31 @@ public class CustomerDatabase {
 			if (!result.isEmpty()) {
 				result += "|";
 			}
-			result += t.getDate() + "~" + t.getAmount() + "~" + t.getBeneficiary();
+			result += t.getDate() + "~" + t.amountValue().toPlainString() + "~" + t.getBeneficiary();
 		}
 		return result;
 	}
 
-	// AccountName:balance or AccountName:balance#date~amount~beneficiary|...
+	// AccountName:balance[:number:status][#date~amount~beneficiary|...]
 	private Account parseAccount(String account) {
-		String[] nameAndRest = account.split(":", 2);
-		String accountName = nameAndRest[0];
-		String balanceAndTxs = nameAndRest[1];
-		int hash = balanceAndTxs.indexOf('#');
-		double balance;
-		String txPart = null;
-		if (hash < 0) {
-			balance = Double.parseDouble(balanceAndTxs);
-		} else {
-			balance = Double.parseDouble(balanceAndTxs.substring(0, hash));
-			txPart = balanceAndTxs.substring(hash + 1);
+		String[] sections = account.split("#", 2);
+		String[] fields = sections[0].split(":", -1);
+		if (fields.length != 2 && fields.length != 4) {
+			throw new IllegalArgumentException("Invalid account fields");
 		}
-		Account a = new Account(accountName, balance);
+		// Older files may contain binary floating-point artifacts with more than two
+		// decimal places. Normalize those balances to cents when loading legacy data.
+		Account a = new Account(fields[0], new BigDecimal(fields[1]).setScale(2, java.math.RoundingMode.HALF_UP));
+		if (fields.length == 4) {
+			a.setAccountNumber(fields[2]);
+			a.setStatus(Account.Status.valueOf(fields[3]));
+		}
+		String txPart = sections.length == 2 ? sections[1] : null;
 		if (txPart != null && !txPart.isEmpty()) {
 			for (String tx : txPart.split("\\|")) {
-				String[] fields = tx.split("~", 3);
-				a.addTransaction(new Transaction(Double.parseDouble(fields[1]), LocalDate.parse(fields[0]), fields[2]));
+				String[] transaction = tx.split("~", 3);
+				a.addTransaction(new Transaction(new BigDecimal(transaction[1]), LocalDate.parse(transaction[0]),
+						transaction[2]));
 			}
 		}
 		return a;
