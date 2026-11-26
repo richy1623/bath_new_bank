@@ -12,9 +12,6 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 
 	private List<Customer> customers;
 
-	public LoanService() {
-	}
-
 	public LoanService(List<Customer> customers) {
 		this.customers = customers;
 	}
@@ -54,7 +51,7 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 	public LoanPayment makePayment(Long loanRequestId, Double amount, Account sourceAccount) {
 		// 1. Get the loan request
 		LoanRequest loan = getLoanRequest(loanRequestId);
-		// 2. Validate the loam, payment amount, source account's balance and debt
+		// 2. Validate the loan, payment amount, source account's balance and debt
 		// status
 		if (loan == null) {
 			throw new IllegalArgumentException("No loan was found with the given id");
@@ -63,15 +60,19 @@ public class LoanService implements LoanPaymentOperation, CustomerLoanOperations
 		} else if (loan.getCurrentDebt() != null && loan.getCurrentDebt() < amount) {
 			throw new IllegalArgumentException("Payment value exceeds the current debt");
 		}
-		// 3. Register payment
+		//3. Validate the loan's active status
+		if (!activeLoan(loanRequestId)) {
+			throw new IllegalArgumentException("Loan is not active");
+		}
+		// 4. Register payment
 		LoanPayment payment = new LoanPayment(estimateLastLoanPaymentId(), amount, java.time.LocalDateTime.now(),
 				sourceAccount, loan);
-		// 4. Deduct the amount from the source account & loan's current debt
+		// 5. Deduct the amount from the source account & loan's current debt
 		sourceAccount.makePayment(amount);
 		loan.reduceDebt(amount);
-		// 5. Record the payment in the loan's payment history
+		// 6. Record the payment in the loan's payment history
 		loan.getLoanPayments().add(payment);
-		// 6. If debt is paid, close it!
+		// 7. If debt is paid, close it!
 		loan.close();
 		return payment;
 	}
