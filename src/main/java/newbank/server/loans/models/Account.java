@@ -11,6 +11,12 @@ public class Account {
 		this.balance = balance;
 	}
 
+	public Account(newbank.server.Account account) {
+		this.accountId = account.getAccountId();
+		this.customer = new Customer(account.getCustomer());
+		this.balance = account.getBalance();
+	}
+
 	public Long getAccountId() {
 		return accountId;
 	}

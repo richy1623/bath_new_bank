@@ -17,6 +17,16 @@ public class Customer {
 		this.loanRequests = loanRequests;
 	}
 
+	public Customer (newbank.server.Customer customer) {
+		this.customerId = (long) customer.getId();
+		this.name = customer.getFullName();
+		
+		//Link customer's accounts
+		for (newbank.server.Account account : customer.getAccounts()) {
+			this.accounts.add(new Account(account));
+		}
+	}
+
 	public Long getCustomerId() {
 		return customerId;
 	}
