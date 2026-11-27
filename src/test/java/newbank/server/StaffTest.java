@@ -204,8 +204,8 @@ class StaffTest {
 	void staffLoginOpensTheStaffMenu() throws IOException {
 		NewBank bank = bank();
 		CustomerID id = bank.checkLogInDetails("Staff", "staff123");
-		assertEquals("Log In Successful. Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT",
-				bank.loginMessage(id));
+		assertEquals("Log In Successful. Staff menu: PENDING, APPROVE <AccountNumber>, REJECT <AccountNumber>, "
+				+ "SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT", bank.loginMessage(id));
 	}
 
 	@Test

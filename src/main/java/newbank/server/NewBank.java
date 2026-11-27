@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -37,7 +39,8 @@ public class NewBank {
 
 	// shown to staff when they log in and when they type MENU; one line, like every
 	// other reply
-	static final String STAFF_MENU = "Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT";
+	static final String STAFF_MENU = "Staff menu: PENDING, APPROVE <AccountNumber>, REJECT <AccountNumber>, "
+			+ "SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT";
 
 	// only these account types may be created with NEWACCOUNT
 	private static final String[] VALID_ACCOUNT_TYPES = {"Savings", "Cheque", "Investment"};
@@ -214,6 +217,12 @@ public class NewBank {
 		if ("MENU".equals(command)) {
 			return isStaff ? STAFF_MENU : "FAIL: Only staff can use the staff menu";
 		}
+		if ("PENDING".equals(command) || "APPROVE".equals(command) || "REJECT".equals(command)) {
+			if (!isStaff) {
+				return "FAIL: Only staff can review new accounts";
+			}
+			return "PENDING".equals(command) ? pendingAccounts(parts) : reviewAccount(parts);
+		}
 		if (isStaff) {
 			return "FAIL: Not a staff command. Type MENU to see the staff menu";
 		}
@@ -278,6 +287,77 @@ public class NewBank {
 		if (saveError != null) {
 			account.restoreStatus(before);
 			return saveError;
+		}
+		return "SUCCESS";
+	}
+
+	// PENDING, staff only: every InReview account on one line, sorted by account
+	// number, as "<AccountNumber> | <Username> | <Type>"
+	private String pendingAccounts(String[] parts) {
+		if (parts.length != 1) {
+			return "FAIL: Type PENDING";
+		}
+		TreeMap<String, String> pending = new TreeMap<>();
+		for (Map.Entry<String, Customer> entry : customers.entrySet()) {
+			for (Account a : entry.getValue().getAccounts()) {
+				if (a.getStatus() == Account.Status.IN_REVIEW) {
+					pending.put(a.getAccountNumber(),
+							a.getAccountNumber() + " | " + entry.getKey() + " | " + a.getAccountName());
+				}
+			}
+		}
+		return pending.isEmpty() ? "No pending accounts" : String.join("; ", pending.values());
+	}
+
+	// APPROVE <AccountNumber> makes an InReview account Active.
+	// REJECT <AccountNumber> deletes an InReview account completely; the customer
+	// keeps their login and can open that type again. An InReview account can't
+	// send or receive money, so no other account needs changing. Only empty
+	// accounts can be rejected, because accounts saved before statuses existed
+	// load as InReview and may still hold money.
+	private String reviewAccount(String[] parts) {
+		String command = parts[0];
+		if (parts.length != 2) {
+			return "FAIL: Type " + command + " <AccountNumber>, for example " + command + " 00000101";
+		}
+		Customer owner = null;
+		Account account = null;
+		for (Customer c : customers.values()) {
+			for (Account a : c.getAccounts()) {
+				if (parts[1].equals(a.getAccountNumber())) {
+					owner = c;
+					account = a;
+				}
+			}
+		}
+		if (account == null) {
+			return "FAIL: Account " + parts[1] + " not found";
+		}
+		if (account.getStatus() != Account.Status.IN_REVIEW) {
+			return "FAIL: Account " + parts[1] + " is " + account.getStatus()
+					+ ". Only InReview accounts can be approved or rejected";
+		}
+		if (!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		if ("APPROVE".equals(command)) {
+			account.setStatus(Account.Status.ACTIVE);
+			String saveError = saveCustomers();
+			if (saveError != null) {
+				account.restoreStatus(Account.Status.IN_REVIEW);
+				return saveError;
+			}
+		} else {
+			if (account.balanceAmount().signum() != 0) {
+				return "FAIL: Account " + parts[1] + " still has money in it, so it cannot be rejected";
+			}
+			int position = owner.getAccounts().indexOf(account);
+			owner.getAccounts().remove(position);
+			String saveError = saveCustomers();
+			if (saveError != null) {
+				owner.getAccounts().add(position, account);
+				return saveError;
+			}
 		}
 		return "SUCCESS";
 	}
