@@ -15,8 +15,20 @@ public class Account {
 	private Customer customer;
 	private ArrayList<Transaction> transactions = new ArrayList<>();
 
+	// the constant names are what is saved in the customers file; the labels are
+	// what customers see
 	public enum Status {
-		ACTIVE, INACTIVE, CLOSED
+		IN_REVIEW("InReview"), ACTIVE("Active"), INACTIVE("Inactive"), CLOSED("Closed");
+
+		private final String label;
+
+		Status(String label) {
+			this.label = label;
+		}
+
+		public String toString() {
+			return label;
+		}
 	}
 
 	public Account(String accountName, double openingBalance) {
@@ -55,8 +67,33 @@ public class Account {
 		return status;
 	}
 
+	// an account can only be closed once it is empty, and can't be reopened
+	// afterwards
 	public void setStatus(Status status) {
-		this.status = java.util.Objects.requireNonNull(status);
+		java.util.Objects.requireNonNull(status);
+		if (this.status == Status.CLOSED && status != Status.CLOSED) {
+			throw new IllegalArgumentException("A closed account cannot be reopened");
+		}
+		if (status == Status.CLOSED && balance.signum() != 0) {
+			throw new IllegalArgumentException("An account can only be closed when its balance is 0");
+		}
+		this.status = status;
+	}
+
+	// only Active accounts can deposit, withdraw or send a transfer
+	public boolean isActive() {
+		return status == Status.ACTIVE;
+	}
+
+	// Inactive accounts can still be paid by other customers, but can't send money
+	public boolean canReceiveTransfer() {
+		return status == Status.ACTIVE || status == Status.INACTIVE;
+	}
+
+	// puts back the status an account had before a change that couldn't be saved;
+	// skips the rules in setStatus, because it only ever restores an earlier state
+	void restoreStatus(Status status) {
+		this.status = status;
 	}
 
 	public BigDecimal balanceAmount() {

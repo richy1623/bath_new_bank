@@ -14,7 +14,9 @@ public class NewBank {
 	// which is the project folder when you follow the README)
 	private static final String CUSTOMERS_FILE = "customers_database.txt";
 
-	private static final NewBank bank = new NewBank(CUSTOMERS_FILE);
+	private static class Holder {
+		static final NewBank BANK = new NewBank(CUSTOMERS_FILE);
+	}
 	private HashMap<String, Customer> customers;
 	private CustomerDatabase database;
 	// false if the file exists but couldn't be loaded. Saving is then switched off,
@@ -24,6 +26,14 @@ public class NewBank {
 	// far)
 	private int nextId = 1;
 	private final Clock clock;
+
+	// account numbers are customer ID * 100 + position, so a 100th account would
+	// get the next customer's first number (closed accounts keep their numbers)
+	private static final int MAX_ACCOUNTS = 99;
+
+	// created when the file has no staff user, so the bank always has one
+	static final String DEFAULT_STAFF_USERNAME = "Staff";
+	static final String DEFAULT_STAFF_PASSWORD = "staff123";
 
 	// only these account types may be created with NEWACCOUNT
 	private static final String[] VALID_ACCOUNT_TYPES = {"Savings", "Cheque", "Investment"};
@@ -63,6 +73,32 @@ public class NewBank {
 				System.out.println("ERROR: could not create " + customersFile + ": " + e.getMessage());
 			}
 		}
+		addDefaultStaffIfMissing();
+	}
+
+	// adds the Staff / staff123 user if there is no staff user yet, including to
+	// files saved before staff existed
+	private void addDefaultStaffIfMissing() {
+		if (!canSave) {
+			return; // the file couldn't be loaded, so it mustn't be overwritten
+		}
+		for (Customer c : customers.values()) {
+			if (c.isStaff()) {
+				return;
+			}
+		}
+		if (customers.containsKey(DEFAULT_STAFF_USERNAME)) {
+			System.out.println(
+					"WARNING: no staff user was added, because a customer is already called " + DEFAULT_STAFF_USERNAME);
+			return;
+		}
+		Customer staff = new Customer(nextId++, "Staff", DEFAULT_STAFF_PASSWORD);
+		staff.setRole(Customer.Role.STAFF);
+		customers.put(DEFAULT_STAFF_USERNAME, staff);
+		String saveError = saveCustomers();
+		if (saveError != null) {
+			System.out.println("WARNING: the staff user is only kept until the server stops");
+		}
 	}
 
 	private void addTestData() {
@@ -87,7 +123,7 @@ public class NewBank {
 	}
 
 	public static NewBank getBank() {
-		return bank;
+		return Holder.BANK;
 	}
 
 	// returns a CustomerID only if the username exists AND the password matches,
@@ -154,6 +190,14 @@ public class NewBank {
 		}
 		String[] parts = trimmed.split("\\s+");
 		String command = parts[0];
+		// staff only change statuses; customers can't change them
+		boolean isStaff = customers.get(customer.getKey()).isStaff();
+		if ("SETSTATUS".equals(command)) {
+			return isStaff ? setStatus(parts) : "FAIL: Only staff can change account statuses";
+		}
+		if (isStaff) {
+			return "FAIL: Staff can only use SETSTATUS";
+		}
 		// Keep transfer-related commands outside the core command switch so independent
 		// features can add switch cases without colliding in NewBank.java.
 		if ("SHOWACCOUNTDETAILS".equals(command)) {
@@ -176,12 +220,56 @@ public class NewBank {
 		}
 	}
 
+	// SETSTATUS <AccountNumber> <Status>, staff only
+	private String setStatus(String[] parts) {
+		if (parts.length != 3) {
+			return "FAIL: Type SETSTATUS <AccountNumber> <Status>, for example SETSTATUS 00000102 Active";
+		}
+		Account.Status status = null;
+		for (Account.Status s : Account.Status.values()) {
+			if (s.toString().equalsIgnoreCase(parts[2])) {
+				status = s;
+			}
+		}
+		if (status == null) {
+			return "FAIL: Status must be InReview, Active, Inactive or Closed";
+		}
+		Account account = null;
+		for (Customer c : customers.values()) {
+			for (Account a : c.getAccounts()) {
+				if (parts[1].equals(a.getAccountNumber())) {
+					account = a;
+				}
+			}
+		}
+		if (account == null) {
+			return "FAIL: Account " + parts[1] + " not found";
+		}
+		if (!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		Account.Status before = account.getStatus();
+		try {
+			account.setStatus(status);
+		} catch (IllegalArgumentException e) {
+			// closing an account that still has money, or reopening a closed one
+			return "FAIL: " + e.getMessage();
+		}
+		String saveError = saveCustomers();
+		if (saveError != null) {
+			account.restoreStatus(before);
+			return saveError;
+		}
+		return "SUCCESS";
+	}
+
 	private String showMyAccounts(CustomerID customer) {
 		String accounts = customers.get(customer.getKey()).accountsToString();
 		return accounts.isEmpty() ? "No accounts" : accounts;
 	}
 
-	// NEWACCOUNT <Type>: opening balance is always 0
+	// NEWACCOUNT <Type>: opening balance is always 0, and the account is InReview
+	// until the bank makes it Active
 	private String newAccount(CustomerID customerID, String[] parts) {
 		if (parts.length != 2) {
 			return "FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings";
@@ -194,10 +282,14 @@ public class NewBank {
 		if (customer.hasAccountType(canonicalType)) {
 			return "FAIL: You already have a " + canonicalType + " account";
 		}
+		if (customer.getAccounts().size() >= MAX_ACCOUNTS) {
+			return "FAIL: You cannot open any more accounts";
+		}
 		if (!canSave) {
 			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
 		}
 		Account account = new Account(canonicalType, 0.0);
+		account.setStatus(Account.Status.IN_REVIEW);
 		account.addTransaction(new Transaction(0.0, LocalDate.now(clock), "Opening"));
 		customer.addAccount(account);
 		String saveError = saveCustomers();
@@ -298,8 +390,12 @@ public class NewBank {
 		if (from == to) {
 			return "FAIL: Source and receiving accounts must be different";
 		}
-		if (from.getStatus() != Account.Status.ACTIVE || to.getStatus() != Account.Status.ACTIVE) {
-			return "FAIL: Both accounts must be Active";
+		if (!from.isActive()) {
+			return "FAIL: Your " + from.getAccountName() + " account is " + from.getStatus()
+					+ ". Only Active accounts can send money";
+		}
+		if (!to.canReceiveTransfer()) {
+			return "FAIL: The receiving account cannot receive money";
 		}
 		if (from.balanceAmount().compareTo(amount) < 0) {
 			return "FAIL: Not enough money";

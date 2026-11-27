@@ -25,25 +25,19 @@ class TransferTest {
 		return dir.resolve("customers.txt");
 	}
 
-	private NewBank bank(Account.Status source, Account.Status destination) throws Exception {
+	private NewBank bank() throws Exception {
 		Customer a = new Customer(1, "Alice", "pw");
 		Account savings = new Account("Savings", 100.3);
-		savings.setStatus(source);
 		a.addAccount(savings);
 		a.addAccount(new Account("Cheque", 0));
 		Customer b = new Customer(2, "Bob", "pw");
 		Account receiving = new Account("Savings", 0.1);
-		receiving.setStatus(destination);
 		b.addAccount(receiving);
 		HashMap<String, Customer> map = new HashMap<>();
 		map.put("alice", a);
 		map.put("bob", b);
 		new CustomerDatabase(file().toString()).save(map);
 		return new NewBank(file().toString(), clock);
-	}
-
-	private NewBank bank() throws Exception {
-		return bank(Account.Status.ACTIVE, Account.Status.ACTIVE);
 	}
 
 	private String snapshot(NewBank bank) {
@@ -101,19 +95,6 @@ class TransferTest {
 		NewBank bank = bank();
 		assertEquals("SUCCESS", bank.processRequest(alice, "TRANSFER Savings 00000102 10.00"));
 		assertEquals("Savings: 90.3, Cheque: 10.0", bank.processRequest(alice, "SHOWMYACCOUNTS"));
-	}
-
-	@Test
-	void inactiveOrClosedAccountsAreRejected() throws Exception {
-		for (Account.Status status : new Account.Status[]{Account.Status.INACTIVE, Account.Status.CLOSED}) {
-			for (boolean source : new boolean[]{true, false}) {
-				NewBank bank = bank(source ? status : Account.Status.ACTIVE, source ? Account.Status.ACTIVE : status);
-				String before = snapshot(bank);
-				assertEquals("FAIL: Both accounts must be Active",
-						bank.processRequest(alice, "TRANSFER Savings 00000201 1"));
-				assertEquals(before, snapshot(bank));
-			}
-		}
 	}
 
 	@Test

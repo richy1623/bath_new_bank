@@ -32,7 +32,7 @@ class NewBankTest {
 	@Test
 	void firstRunCreatesFileWithTestCustomers() throws IOException {
 		assertTrue(new File(customersFile).exists());
-		assertEquals(3, Files.readAllLines(Path.of(customersFile)).size());
+		assertEquals(4, Files.readAllLines(Path.of(customersFile)).size());
 	}
 
 	@Test
@@ -105,12 +105,12 @@ class NewBankTest {
 
 	@Test
 	void idsAreUniqueAndContinueAfterRestart() throws IOException {
-		bank.registerCustomer("Alice Smith", "asmith", "secret"); // gets ID 4 (test customers are 1-3)
+		bank.registerCustomer("Alice Smith", "asmith", "secret"); // gets ID 5 (test customers are 1-3, Staff is 4)
 		NewBank restarted = new NewBank(customersFile);
-		restarted.registerCustomer("Tom Lee", "tlee", "pw"); // must get ID 5, not reuse an ID
+		restarted.registerCustomer("Tom Lee", "tlee", "pw"); // must get ID 6, not reuse an ID
 		String file = Files.readString(Path.of(customersFile));
-		assertTrue(file.contains("4,asmith,Alice Smith,secret,"));
-		assertTrue(file.contains("5,tlee,Tom Lee,pw,"));
+		assertTrue(file.contains("5,asmith,Alice Smith,secret,"));
+		assertTrue(file.contains("6,tlee,Tom Lee,pw,"));
 	}
 
 	@Test
