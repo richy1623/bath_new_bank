@@ -28,8 +28,12 @@ The username must exist and the password must match the one given at REGISTER.
 Test customers (Bhagy, Christina, John) have no password: leave the password
 blank (just press Enter).
 Staff log in the same way. The default staff user is Staff, password staff123.
+There is no staff sign-up: staff users are seeded in customers_database.txt.
 Returns:  Checking Details...
           Log In Successful. What do you want to do?
+or, for staff (role STAFF in the file):
+          Checking Details...
+          Log In Successful. Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
 or:       Checking Details...
           Log In Failed. Please try again.     (then "Enter Username" again)
 There is no limit on the number of attempts.
@@ -55,8 +59,14 @@ Returns SUCCESS, or FAIL: <reason>, one of:
   FAIL: Customer data could not be loaded, so changes cannot be saved right now
   FAIL: Your details could not be saved, please try again later
 A customer typing SETSTATUS gets: FAIL: Only staff can change account statuses
-Staff can't use any of the customer commands below; they get:
-  FAIL: Staff can only use SETSTATUS
+
+MENU
+Staff only. Shows the staff menu again:
+  Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
+A customer typing MENU gets: FAIL: Only staff can use the staff menu
+Staff typing anything not on the staff menu, including the customer commands
+below, get:
+  FAIL: Not a staff command. Type MENU to see the staff menu
 
 Once logged in, a customer enters the commands below and sees the messages returned
 

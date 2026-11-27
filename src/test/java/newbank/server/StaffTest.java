@@ -184,9 +184,10 @@ class StaffTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"SHOWMYACCOUNTS", "SHOWACCOUNTDETAILS", "NEWACCOUNT Savings", "SHOWACTIVITY Savings",
-			"TRANSFER Savings 00000201 1"})
+			"TRANSFER Savings 00000201 1", "HELLO"})
 	void staffCannotBank(String request) throws IOException {
-		assertEquals("FAIL: Staff can only use SETSTATUS", bank().processRequest(staff, request));
+		assertEquals("FAIL: Not a staff command. Type MENU to see the staff menu",
+				bank().processRequest(staff, request));
 	}
 
 	@Test
@@ -195,5 +196,44 @@ class StaffTest {
 		assertEquals("FAIL: Only staff can change account statuses",
 				bank.processRequest(alice, "SETSTATUS 00000101 Active"));
 		assertEquals("Savings | 00000101 | InReview | 0.0; Cheque | 00000102 | Active | 0.0", details(bank, alice));
+	}
+
+	// ---- logging in and the staff menu ----
+
+	@Test
+	void staffLoginOpensTheStaffMenu() throws IOException {
+		NewBank bank = bank();
+		CustomerID id = bank.checkLogInDetails("Staff", "staff123");
+		assertEquals("Log In Successful. Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT",
+				bank.loginMessage(id));
+	}
+
+	@Test
+	void customerLoginKeepsTheUsualPrompt() throws IOException {
+		NewBank bank = bank();
+		CustomerID id = bank.checkLogInDetails("alice", "pw");
+		assertEquals("Log In Successful. What do you want to do?", bank.loginMessage(id));
+	}
+
+	@Test
+	void staffLoginFollowsTheRoleInTheFileNotTheUsername() throws IOException {
+		// a staff user with another name gets the menu; a customer called "staff"
+		// doesn't
+		Files.writeString(file(), "1,manager,Manager,pw,,STAFF\n2,staff,Someone,pw,,CUSTOMER\n");
+		NewBank bank = new NewBank(file().toString());
+		assertEquals("Log In Successful. " + NewBank.STAFF_MENU,
+				bank.loginMessage(bank.checkLogInDetails("manager", "pw")));
+		assertEquals("Log In Successful. What do you want to do?",
+				bank.loginMessage(bank.checkLogInDetails("staff", "pw")));
+	}
+
+	@Test
+	void menuShowsTheStaffMenuAgain() throws IOException {
+		assertEquals(NewBank.STAFF_MENU, bank().processRequest(staff, "MENU"));
+	}
+
+	@Test
+	void customersCannotOpenTheStaffMenu() throws IOException {
+		assertEquals("FAIL: Only staff can use the staff menu", bank().processRequest(alice, "MENU"));
 	}
 }

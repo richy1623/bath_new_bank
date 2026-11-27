@@ -128,7 +128,7 @@ java -jar target/newbank-client.jar
 | `AccountNumberTest` | Old files get stable account numbers and Active status, new accounts get unique numbers, damaged account data is rejected. |
 | `AccountDisplayAndNumberingTest` | Large balances print as plain decimals, old accounts never reuse a saved number, and the decimal constructor rounds to cents. |
 | `AccountStatusTest` | All four statuses survive a restart, new accounts start InReview, which statuses can send and receive, only empty accounts can be closed, closed accounts cannot be reopened, and a closed type can be opened again as a new account. |
-| `StaffTest` | The default staff user, roles in the file, `SETSTATUS` (every `FAIL` reason, saving, restarts), and that staff and customers can only use their own commands. |
+| `StaffTest` | The default staff user, roles in the file, the staff menu at login and from `MENU`, `SETSTATUS` (every `FAIL` reason, saving, restarts), and that staff and customers can only use their own commands. |
 | `TransferTest` | Transfers update both balances and histories, invalid amounts and accounts change nothing, a failed save is fully rolled back, and concurrent transfers cannot overdraw. |
 
 `NewBank` has package-private constructors so tests can use a temporary file and a fixed `Clock`. The server itself uses `customers_database.txt` and the system clock.
@@ -268,6 +268,8 @@ Everything is plain text over TCP, one message per line. After the username and 
 |---|---|---|---|
 | `REGISTER` | `REGISTER`, then answer the full name, username and password prompts | `SUCCESS`, or `FAIL: <reason>`. Typed at the `Enter Username` prompt, before login. | Yes |
 | `LOGOUT` | `LOGOUT` | `Log Out Successful. Goodbye <Username>.` then `Enter Username` | Yes |
+| `SETSTATUS <AccountNumber> <Status>` | `SETSTATUS 00000102 Active` | Staff only. `SUCCESS` or `FAIL: <reason>` | Yes |
+| `MENU` | `MENU` | Staff only. The staff menu, on one line | Yes |
 | `SHOWMYACCOUNTS` | `SHOWMYACCOUNTS` | One line of accounts and balances, e.g. `Savings: 1000.0, Cheque: 250.0`, or `No accounts`. Closed accounts are left out. | Yes |
 | `NEWACCOUNT <Type>` | `NEWACCOUNT Savings` | `SUCCESS`, or `FAIL: <reason>`. Opening balance is always 0 and the status is InReview. Types: Savings, Cheque, Investment. | Yes |
 | `SHOWACTIVITY <AccountType>` | `SHOWACTIVITY Savings` | One line of transactions, e.g. `100.0 \| 2026-11-17 \| Bhagy; -20.0 \| 2026-11-18 \| Shop`, or `No transactions` / `FAIL: <reason>` | Yes |
@@ -325,19 +327,28 @@ Staff are saved in `customers_database.txt` like customers, with the role `STAFF
 
 The password is published here because this is a school project; a real bank would never do that. If a customer is already called `Staff`, no staff user is added and the server prints a warning.
 
-Staff log in through the same prompts as customers, then use one command:
+Staff log in through the same prompts as customers. The login checks the user's role in the file, not the username, and staff get the staff menu instead of the usual prompt:
 
 ```text
+Enter Username
+> Staff
+Enter Password
+> staff123
+Checking Details...
+Log In Successful. Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
 > SETSTATUS 00000302 Active
 SUCCESS
 ```
 
+The menu is one line, like every other reply. `MENU` shows it again, and `LOGOUT` works as it does for customers.
+
 - **Any customer's account:** staff identify accounts by number, which customers see with `SHOWACCOUNTDETAILS`.
 - **The rules still apply:** an account with money can't be closed, and a closed account can't be reopened.
 - **Saved first:** `SUCCESS` is only sent once the change is saved; if saving fails, the status is put back.
-- **Staff can't bank:** every customer command replies `FAIL: Staff can only use SETSTATUS`, so staff can't approve accounts of their own. Customers typing `SETSTATUS` get `FAIL: Only staff can change account statuses`.
+- **Staff can't bank:** anything not on the staff menu, including every customer command, replies `FAIL: Not a staff command. Type MENU to see the staff menu`. So staff can't approve accounts of their own.
+- **Customers can't reach the staff menu:** `MENU` replies `FAIL: Only staff can use the staff menu`, and `SETSTATUS` replies `FAIL: Only staff can change account statuses`.
 
-The code is in `NewBank.setStatus()` and `NewBank.addDefaultStaffIfMissing()`, with the role in `Customer`.
+The code is in `NewBank.loginMessage()`, `NewBank.setStatus()` and `NewBank.addDefaultStaffIfMissing()`, with the role in `Customer`. `NewBankClientHandler` prints `loginMessage()` after a successful login.
 
 ## Architecture
 
