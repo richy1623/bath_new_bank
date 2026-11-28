@@ -36,8 +36,8 @@ class AccountDisplayAndNumberingTest {
 		CustomerID bob = new CustomerID("b");
 		assertEquals("Savings: 10000000.0", bank.processRequest(alice, "SHOWMYACCOUNTS"));
 		assertEquals("SUCCESS", bank.processRequest(alice, "TRANSFER Savings 00000201 1234567.89"));
-		assertEquals("Savings | 00000101 | ACTIVE | 8765432.11", bank.processRequest(alice, "SHOWACCOUNTDETAILS"));
-		assertEquals("Savings | 00000201 | ACTIVE | 1234567.89", bank.processRequest(bob, "SHOWACCOUNTDETAILS"));
+		assertEquals("Savings | 00000101 | Active | 8765432.11", bank.processRequest(alice, "SHOWACCOUNTDETAILS"));
+		assertEquals("Savings | 00000201 | Active | 1234567.89", bank.processRequest(bob, "SHOWACCOUNTDETAILS"));
 		assertEquals("-1234567.89 | 2026-11-23 | 00000201", bank.processRequest(alice, "SHOWACTIVITY Savings"));
 		assertEquals("1234567.89 | 2026-11-23 | 00000101", bank.processRequest(bob, "SHOWACTIVITY Savings"));
 	}

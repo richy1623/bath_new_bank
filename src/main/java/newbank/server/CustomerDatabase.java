@@ -66,12 +66,13 @@ public class CustomerDatabase {
 							accounts += ";";
 						}
 						accounts += a.getAccountName() + ":" + a.balanceAmount().toPlainString() + ":"
-								+ a.getAccountNumber() + ":" + a.getStatus();
+								+ a.getAccountNumber() + ":" + a.getStatus().name();
 						if (!a.getTransactions().isEmpty()) {
 							accounts += "#" + transactionsToString(a);
 						}
 					}
-					file.write(c.getId() + "," + userName + "," + fullName + "," + password + "," + accounts);
+					file.write(c.getId() + "," + userName + "," + fullName + "," + password + "," + accounts + ","
+							+ c.getRole().name());
 					file.newLine();
 				}
 			}
@@ -101,6 +102,10 @@ public class CustomerDatabase {
 					// fields: [0] id, [1] username, [2] full name, [3] password, [4] accounts
 					String[] fields = line.split(",", -1);
 					Customer c = new Customer(Integer.parseInt(fields[0]), fields[2], fields[3]);
+					// [5] role was added later; older lines without it are customers
+					if (fields.length > 5) {
+						c.setRole(Customer.Role.valueOf(fields[5]));
+					}
 					if (!fields[4].isEmpty()) {
 						for (String account : fields[4].split(";")) {
 							c.addLoadedAccount(parseAccount(account));
@@ -152,6 +157,9 @@ public class CustomerDatabase {
 		if (fields.length == 4) {
 			a.setAccountNumber(fields[2]);
 			a.setStatus(Account.Status.valueOf(fields[3]));
+		} else {
+			// saved before statuses existed: staff must review it, like a new account
+			a.setStatus(Account.Status.IN_REVIEW);
 		}
 		String txPart = sections.length == 2 ? sections[1] : null;
 		if (txPart != null && !txPart.isEmpty()) {

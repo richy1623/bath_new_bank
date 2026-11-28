@@ -8,6 +8,13 @@ public class Customer {
 	private int id;
 	private String fullName;
 	private String password;
+	// staff can change account statuses but can't bank; REGISTER always creates
+	// customers
+	private Role role = Role.CUSTOMER;
+
+	public enum Role {
+		CUSTOMER, STAFF
+	}
 
 	// the only constructor: every customer must have an ID, so there's no empty
 	// Customer()
@@ -27,6 +34,18 @@ public class Customer {
 		return fullName;
 	}
 
+	public Role getRole() {
+		return role;
+	}
+
+	void setRole(Role role) {
+		this.role = java.util.Objects.requireNonNull(role);
+	}
+
+	public boolean isStaff() {
+		return role == Role.STAFF;
+	}
+
 	// true if the attempt matches this customer's password.
 	// Test customers have no password (null, or "" once loaded from the file),
 	// so for them a blank attempt (just pressing Enter) matches.
@@ -38,9 +57,13 @@ public class Customer {
 		return saved.equals(attempt);
 	}
 
+	// closed accounts are left out; SHOWACCOUNTDETAILS still lists them
 	public String accountsToString() {
 		String s = "";
 		for (Account a : accounts) {
+			if (a.getStatus() == Account.Status.CLOSED) {
+				continue;
+			}
 			if (!s.isEmpty()) {
 				s += ", ";
 			}
@@ -84,17 +107,25 @@ public class Customer {
 		return false;
 	}
 
+	// the open account of this type, or the most recently opened closed one if
+	// there is no open account, or null if there is neither
 	public Account getAccount(String accountName) {
+		Account closed = null;
 		for (Account a : accounts) {
 			if (a.getAccountName().equalsIgnoreCase(accountName)) {
-				return a;
+				if (a.getStatus() != Account.Status.CLOSED) {
+					return a;
+				}
+				closed = a;
 			}
 		}
-		return null;
+		return closed;
 	}
 
+	// closed accounts don't count, so a customer can open that type again
 	public boolean hasAccountType(String accountType) {
-		return getAccount(accountType) != null;
+		Account account = getAccount(accountType);
+		return account != null && account.getStatus() != Account.Status.CLOSED;
 	}
 
 	// used when saving to the customers file; test customers have no password, so

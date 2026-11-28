@@ -27,6 +27,7 @@ The server asks "Enter Username", then "Enter Password".
 The username must exist and the password must match the one given at REGISTER.
 Test customers (Bhagy, Christina, John) have no password: leave the password
 blank (just press Enter).
+Staff log in the same way. The default staff user is Staff, password staff123.
 Returns:  Checking Details...
           Log In Successful. What do you want to do?
 or:       Checking Details...
@@ -40,22 +41,45 @@ Returns:  Log Out Successful. Goodbye <Username>.
 The server then goes back to the login prompt, so another customer can log in
 (or REGISTER) without restarting the client.
 
+SETSTATUS <AccountNumber> <Status>
+e.g. SETSTATUS 00000102 Active
+Staff only. Changes the status of any customer's account.
+Status is InReview, Active, Inactive or Closed (any capitalisation).
+The change is saved to customers_database.txt before SUCCESS is sent.
+Returns SUCCESS, or FAIL: <reason>, one of:
+  FAIL: Type SETSTATUS <AccountNumber> <Status>, for example SETSTATUS 00000102 Active
+  FAIL: Status must be InReview, Active, Inactive or Closed
+  FAIL: Account <AccountNumber> not found
+  FAIL: An account can only be closed when its balance is 0
+  FAIL: A closed account cannot be reopened
+  FAIL: Customer data could not be loaded, so changes cannot be saved right now
+  FAIL: Your details could not be saved, please try again later
+A customer typing SETSTATUS gets: FAIL: Only staff can change account statuses
+Staff can't use any of the customer commands below; they get:
+  FAIL: Staff can only use SETSTATUS
+
 Once logged in, a customer enters the commands below and sees the messages returned
 
 SHOWMYACCOUNTS
 Returns all of the customer's accounts and current balances on one line, separated by commas.
 e.g. Savings: 1000.0, Cheque: 250.0
+Closed accounts are left out. Use SHOWACCOUNTDETAILS to see them.
 
 NEWACCOUNT <Type>
 e.g. NEWACCOUNT Savings
 Creates a new account for the logged-in customer.
 Opening balance is always 0.
+The account starts as InReview, so it cannot send or receive money until the bank
+makes it Active.
 Valid types only: Savings, Cheque, Investment.
-Each customer may have at most one account of each type.
+Each customer may have at most one open account of each type. Closed accounts don't
+count, so a type can be opened again with a new account number.
+Each customer may have at most 99 accounts in total, including closed ones.
 Returns SUCCESS, or FAIL: <reason>, one of:
   FAIL: Type NEWACCOUNT <Type>, for example NEWACCOUNT Savings
   FAIL: Account type must be Savings, Cheque or Investment
   FAIL: You already have a <Type> account
+  FAIL: You cannot open any more accounts
   FAIL: Customer data could not be loaded, so changes cannot be saved right now
   FAIL: Your details could not be saved, please try again later
 An Opening transaction is recorded so SHOWACTIVITY has something to show.
@@ -69,6 +93,7 @@ If the account has no transactions yet: No transactions
 Returns FAIL: <reason> when the command or account is wrong, one of:
   FAIL: Type SHOWACTIVITY <AccountType>, for example SHOWACTIVITY Savings
   FAIL: Account <AccountType> not found
+If the customer has both open and closed accounts of that type, this shows the open one.
 
 MOVE <Amount> <From> <To>
 e.g. MOVE 100 Main Savings 
@@ -81,18 +106,27 @@ Returns SUCCESS or FAIL (not implemented)
 SHOWACCOUNTDETAILS
 Lists only the logged-in customer's accounts on one line:
   <type> | <account number> | <status> | <balance>; ...
-e.g. Savings | 00000101 | ACTIVE | 1000.0
+e.g. Savings | 00000101 | Active | 1000.0
 Account numbers contain digits and must be copied including leading zeros.
-New accounts are ACTIVE. Old account files receive stable numbers and default
-to ACTIVE when loaded. Account numbers and statuses are saved with the balances.
-INACTIVE and CLOSED accounts cannot send or receive transfers.
-This command does not change the existing SHOWMYACCOUNTS output.
+New accounts are InReview. Old account files receive stable numbers and load
+as InReview. Account numbers and statuses are saved with the balances.
+Account statuses:
+  InReview  cannot send or receive money
+  Active    can send and receive money
+  Inactive  can receive transfers from other customers, but cannot send money
+  Closed    cannot send or receive money
+An account can only be closed when its balance is 0, and it cannot be reopened afterwards.
+Staff change statuses with SETSTATUS.
+Unlike SHOWMYACCOUNTS, this command also lists closed accounts.
 
 TRANSFER <FromType> <ReceivingAccountNumber> <Amount>
 e.g. TRANSFER Savings 00000301 25.50
 Requires login. The source type identifies one of the customer's own accounts.
-The receiving account may belong to the logged-in customer or another customer; both
-accounts must be ACTIVE.
+The receiving account may belong to the logged-in customer or another customer.
+The source account must be Active, and the receiving account must be Active or Inactive.
+Otherwise the reply is one of:
+  FAIL: Your <Type> account is <Status>. Only Active accounts can send money
+  FAIL: The receiving account cannot receive money
 Amounts must be positive plain decimal values with one or two decimal places, at most
 999999999999.99. Scientific notation and explicit plus signs are rejected.
 Returns SUCCESS only after both updated balances and both activity records are saved.
@@ -101,5 +135,5 @@ the receiver's activity records a positive amount and the sending account number
 Use SHOWACTIVITY <Type> to see the records.
 If saving fails, both balances and both histories are restored.
 Possible failure reasons include invalid parameters or amount, missing source or
-receiving account, selecting the same account as both source and destination, inactive
-account, insufficient funds, and a file-save error. The reply is FAIL: <reason>.
+receiving account, selecting the same account as both source and destination, account
+status, insufficient funds, and a file-save error. The reply is FAIL: <reason>.

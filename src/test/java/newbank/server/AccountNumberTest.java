@@ -12,7 +12,7 @@ class AccountNumberTest {
 	Path dir;
 
 	@Test
-	void legacyAccountsGetStableNumbersAndActiveStatus() throws IOException {
+	void legacyAccountsGetStableNumbersAndInReviewStatus() throws IOException {
 		Path file = dir.resolve("customers.txt");
 		Files.writeString(file, "1,alice,Alice,pw,Savings:100.3;Cheque:0.0\n2,bob,Bob,pw,Savings:0.1\n");
 		CustomerDatabase db = new CustomerDatabase(file.toString());
@@ -21,7 +21,7 @@ class AccountNumberTest {
 		assertEquals("00000101", savings.getAccountNumber());
 		assertEquals("00000102", customers.get("alice").getAccount("Cheque").getAccountNumber());
 		assertEquals("00000201", customers.get("bob").getAccount("Savings").getAccountNumber());
-		assertEquals(Account.Status.ACTIVE, savings.getStatus());
+		assertEquals(Account.Status.IN_REVIEW, savings.getStatus());
 		savings.setStatus(Account.Status.INACTIVE);
 		db.save(customers);
 		Account loaded = db.load().get("alice").getAccount("Savings");
@@ -37,7 +37,7 @@ class AccountNumberTest {
 		CustomerID alice = bank.checkLogInDetails("alice", "pw");
 		assertEquals("SUCCESS", bank.processRequest(alice, "NEWACCOUNT Savings"));
 		assertEquals("SUCCESS", bank.processRequest(alice, "NEWACCOUNT Cheque"));
-		assertEquals("Savings | 00000401 | ACTIVE | 0.0; Cheque | 00000402 | ACTIVE | 0.0",
+		assertEquals("Savings | 00000501 | InReview | 0.0; Cheque | 00000502 | InReview | 0.0",
 				bank.processRequest(alice, "SHOWACCOUNTDETAILS"));
 	}
 
