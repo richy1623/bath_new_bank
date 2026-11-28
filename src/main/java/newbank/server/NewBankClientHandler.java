@@ -93,7 +93,8 @@ public class NewBankClientHandler extends Thread {
 					break; // client disconnected
 				}
 				// the user is authenticated, so get requests from the user and process them
-				out.println("Log In Successful. What do you want to do?");
+				// staff get the staff menu here; customers get the usual prompt
+				out.println(bank.loginMessage(customer));
 				while (true) {
 					String request = in.readLine();
 					if (request == null) {

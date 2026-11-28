@@ -35,6 +35,10 @@ public class NewBank {
 	static final String DEFAULT_STAFF_USERNAME = "Staff";
 	static final String DEFAULT_STAFF_PASSWORD = "staff123";
 
+	// shown to staff when they log in and when they type MENU; one line, like every
+	// other reply
+	static final String STAFF_MENU = "Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT";
+
 	// only these account types may be created with NEWACCOUNT
 	private static final String[] VALID_ACCOUNT_TYPES = {"Savings", "Cheque", "Investment"};
 
@@ -136,6 +140,17 @@ public class NewBank {
 		return null;
 	}
 
+	// the reply to a successful login: staff get the staff menu, customers the
+	// usual
+	// prompt
+	public synchronized String loginMessage(CustomerID customer) {
+		Customer c = customers.get(customer.getKey());
+		if (c != null && c.isStaff()) {
+			return "Log In Successful. " + STAFF_MENU;
+		}
+		return "Log In Successful. What do you want to do?";
+	}
+
 	// REGISTER: adds a new customer (with no accounts and a unique ID) to the
 	// customers HashMap
 	// and saves it. The client handler asks for each detail on its own line, so
@@ -190,13 +205,17 @@ public class NewBank {
 		}
 		String[] parts = trimmed.split("\\s+");
 		String command = parts[0];
-		// staff only change statuses; customers can't change them
+		// staff only use the staff menu; customers can't reach any of it
+		// (LOGOUT is handled by NewBankClientHandler for everyone)
 		boolean isStaff = customers.get(customer.getKey()).isStaff();
 		if ("SETSTATUS".equals(command)) {
 			return isStaff ? setStatus(parts) : "FAIL: Only staff can change account statuses";
 		}
+		if ("MENU".equals(command)) {
+			return isStaff ? STAFF_MENU : "FAIL: Only staff can use the staff menu";
+		}
 		if (isStaff) {
-			return "FAIL: Staff can only use SETSTATUS";
+			return "FAIL: Not a staff command. Type MENU to see the staff menu";
 		}
 		// Keep transfer-related commands outside the core command switch so independent
 		// features can add switch cases without colliding in NewBank.java.
