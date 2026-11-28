@@ -33,7 +33,7 @@ Returns:  Checking Details...
           Log In Successful. What do you want to do?
 or, for staff (role STAFF in the file):
           Checking Details...
-          Log In Successful. Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
+          Log In Successful. Staff menu: PENDING, APPROVE <AccountNumber>, REJECT <AccountNumber>, SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
 or:       Checking Details...
           Log In Failed. Please try again.     (then "Enter Username" again)
 There is no limit on the number of attempts.
@@ -60,9 +60,40 @@ Returns SUCCESS, or FAIL: <reason>, one of:
   FAIL: Your details could not be saved, please try again later
 A customer typing SETSTATUS gets: FAIL: Only staff can change account statuses
 
+PENDING
+Staff only. Lists every InReview account (new accounts waiting for approval) on
+one line, sorted by account number, as <AccountNumber> | <Username> | <Type>.
+e.g. 00000101 | alice | Savings; 00000201 | bob | Investment
+Returns "No pending accounts" when there are none, or FAIL: Type PENDING if
+anything is typed after it.
+
+APPROVE <AccountNumber>
+e.g. APPROVE 00000101
+Staff only. Makes an InReview account Active, so the customer can use it.
+
+REJECT <AccountNumber>
+e.g. REJECT 00000101
+Staff only. Deletes an InReview account completely, from memory and from
+customers_database.txt. The customer keeps their login and other accounts, and
+can open that type again with NEWACCOUNT (the number may be given out again).
+Only empty accounts can be rejected: accounts saved before statuses existed
+load as InReview and may still hold money.
+
+APPROVE and REJECT save the change before SUCCESS is sent.
+They return SUCCESS, or FAIL: <reason>, one of:
+  FAIL: Type APPROVE <AccountNumber>, for example APPROVE 00000101
+        (or the same with REJECT)
+  FAIL: Account <AccountNumber> not found
+  FAIL: Account <AccountNumber> is <Status>. Only InReview accounts can be approved or rejected
+  FAIL: Account <AccountNumber> still has money in it, so it cannot be rejected   (REJECT only)
+  FAIL: Customer data could not be loaded, so changes cannot be saved right now
+  FAIL: Your details could not be saved, please try again later
+A customer typing PENDING, APPROVE or REJECT gets:
+  FAIL: Only staff can review new accounts
+
 MENU
 Staff only. Shows the staff menu again:
-  Staff menu: SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
+  Staff menu: PENDING, APPROVE <AccountNumber>, REJECT <AccountNumber>, SETSTATUS <AccountNumber> <Status>, MENU, LOGOUT
 A customer typing MENU gets: FAIL: Only staff can use the staff menu
 Staff typing anything not on the staff menu, including the customer commands
 below, get:
