@@ -120,3 +120,22 @@ Returns FAIL: <reason> on error, one of:
   FAIL: Account <AccountType> not found
   FAIL: Customer data could not be loaded, so changes cannot be saved right now
   FAIL: Your details could not be saved, please try again later
+
+WITHDRAW <AccountType> <Amount>
+e.g. WITHDRAW Savings 50.00
+Requires login. Withdraws cash from the customer's specified account and decreases its balance.
+Amounts must be positive plain decimal values with one or two decimal places, at most
+999999999999.99. Scientific notation and explicit plus signs are rejected.
+The account must have at least the requested amount available (cannot go below 0).
+Returns SUCCESS: New balance is <balance> only after the updated balance and activity
+record (-<amount> | <date> | Withdrawal) are saved to customers_database.txt.
+If saving fails, both the balance and transaction history are restored.
+Returns FAIL: <reason> on error, one of:
+  FAIL: No active customer session
+  FAIL: Type WITHDRAW <AccountType> <Amount>, for example WITHDRAW Savings 50.00
+  FAIL: Amount must be a positive number with at most 2 decimal places
+  FAIL: Amount must be between 0.01 and 999999999999.99
+  FAIL: Account <AccountType> not found
+  FAIL: Not enough money
+  FAIL: Customer data could not be loaded, so changes cannot be saved right now
+  FAIL: Your details could not be saved, please try again later

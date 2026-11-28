@@ -165,6 +165,9 @@ public class NewBank {
 		if ("DEPOSIT".equals(command)) {
 			return deposit(customer, parts);
 		}
+		if ("WITHDRAW".equals(command)) {
+			return withdraw(customer, parts);
+		}
 		switch (command) {
 			case "SHOWMYACCOUNTS" :
 				return showMyAccounts(customer);
@@ -299,6 +302,38 @@ public class NewBank {
 		BigDecimal balanceBefore = account.balanceAmount();
 		int txCountBefore = account.getTransactions().size();
 		account.recordDeposit(amount, LocalDate.now(clock));
+		String saveError = saveCustomers();
+		if (saveError != null) {
+			account.restore(balanceBefore, txCountBefore);
+			return saveError;
+		}
+		return "SUCCESS: New balance is " + Account.format(account.balanceAmount());
+	}
+
+	// WITHDRAW <AccountType> <Amount>
+	private String withdraw(CustomerID customerID, String[] parts) {
+		if (parts.length != 3) {
+			return "FAIL: Type WITHDRAW <AccountType> <Amount>, for example WITHDRAW Savings 50.00";
+		}
+		String amountError = validateAmount(parts[2]);
+		if (amountError != null) {
+			return amountError;
+		}
+		BigDecimal amount = new BigDecimal(parts[2]).setScale(2, RoundingMode.UNNECESSARY);
+		Customer customer = customers.get(customerID.getKey());
+		Account account = customer.getAccount(parts[1]);
+		if (account == null) {
+			return "FAIL: Account " + parts[1] + " not found";
+		}
+		if (account.balanceAmount().compareTo(amount) < 0) {
+			return "FAIL: Not enough money";
+		}
+		if (!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		BigDecimal balanceBefore = account.balanceAmount();
+		int txCountBefore = account.getTransactions().size();
+		account.recordWithdrawal(amount, LocalDate.now(clock));
 		String saveError = saveCustomers();
 		if (saveError != null) {
 			account.restore(balanceBefore, txCountBefore);
