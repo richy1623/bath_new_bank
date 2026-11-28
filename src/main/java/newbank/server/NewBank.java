@@ -162,6 +162,9 @@ public class NewBank {
 		if ("TRANSFER".equals(command)) {
 			return transfer(customer, parts);
 		}
+		if ("DEPOSIT".equals(command)) {
+			return deposit(customer, parts);
+		}
 		switch (command) {
 			case "SHOWMYACCOUNTS" :
 				return showMyAccounts(customer);
@@ -259,24 +262,61 @@ public class NewBank {
 		return result;
 	}
 
+	private String validateAmount(String value) {
+		try {
+			if (!value.matches("[0-9]{1,12}([.][0-9]{1,2})?")) {
+				return "FAIL: Amount must be a positive number with at most 2 decimal places";
+			}
+			BigDecimal parsed = new BigDecimal(value);
+			if (parsed.signum() <= 0 || parsed.compareTo(new BigDecimal("999999999999.99")) > 0) {
+				return "FAIL: Amount must be between 0.01 and 999999999999.99";
+			}
+			parsed.setScale(2, RoundingMode.UNNECESSARY);
+			return null;
+		} catch (NumberFormatException | ArithmeticException e) {
+			return "FAIL: Amount must be a positive number with at most 2 decimal places";
+		}
+	}
+
+	// DEPOSIT <AccountType> <Amount>
+	private String deposit(CustomerID customerID, String[] parts) {
+		if (parts.length != 3) {
+			return "FAIL: Type DEPOSIT <AccountType> <Amount>, for example DEPOSIT Savings 50.00";
+		}
+		String amountError = validateAmount(parts[2]);
+		if (amountError != null) {
+			return amountError;
+		}
+		BigDecimal amount = new BigDecimal(parts[2]).setScale(2, RoundingMode.UNNECESSARY);
+		Customer customer = customers.get(customerID.getKey());
+		Account account = customer.getAccount(parts[1]);
+		if (account == null) {
+			return "FAIL: Account " + parts[1] + " not found";
+		}
+		if (!canSave) {
+			return "FAIL: Customer data could not be loaded, so changes cannot be saved right now";
+		}
+		BigDecimal balanceBefore = account.balanceAmount();
+		int txCountBefore = account.getTransactions().size();
+		account.recordDeposit(amount, LocalDate.now(clock));
+		String saveError = saveCustomers();
+		if (saveError != null) {
+			account.restore(balanceBefore, txCountBefore);
+			return saveError;
+		}
+		return "SUCCESS: New balance is " + Account.format(account.balanceAmount());
+	}
+
 	// All commands hold the bank lock, so no request observes half a transfer.
 	private String transfer(CustomerID customerID, String[] parts) {
 		if (parts.length != 4) {
 			return "FAIL: Type TRANSFER <FromType> <ReceivingAccountNumber> <Amount>";
 		}
-		BigDecimal amount;
-		try {
-			if (!parts[3].matches("[0-9]{1,12}([.][0-9]{1,2})?")) {
-				return "FAIL: Amount must be a positive number with at most 2 decimal places";
-			}
-			BigDecimal parsed = new BigDecimal(parts[3]);
-			if (parsed.signum() <= 0 || parsed.compareTo(new BigDecimal("999999999999.99")) > 0) {
-				return "FAIL: Amount must be between 0.01 and 999999999999.99";
-			}
-			amount = parsed.setScale(2, RoundingMode.UNNECESSARY);
-		} catch (NumberFormatException | ArithmeticException e) {
-			return "FAIL: Amount must be a positive number with at most 2 decimal places";
+		String amountError = validateAmount(parts[3]);
+		if (amountError != null) {
+			return amountError;
 		}
+		BigDecimal amount = new BigDecimal(parts[3]).setScale(2, RoundingMode.UNNECESSARY);
 		Customer payer = customers.get(customerID.getKey());
 		Account from = payer.getAccount(parts[1]);
 		if (from == null) {
