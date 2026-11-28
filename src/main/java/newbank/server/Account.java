@@ -73,6 +73,16 @@ public class Account {
 		transactions.add(new Transaction(amount, date, counterparty));
 	}
 
+	void recordDeposit(BigDecimal amount, java.time.LocalDate date) {
+		balance = balance.add(amount);
+		transactions.add(new Transaction(amount, date, "Deposit"));
+	}
+
+	void recordWithdrawal(BigDecimal amount, java.time.LocalDate date) {
+		balance = balance.subtract(amount);
+		transactions.add(new Transaction(amount.negate(), date, "Withdrawal"));
+	}
+
 	public Account(String accountName, double openingBalance, Customer customer) {
 		this(accountName, openingBalance);
 		this.customer = customer;
